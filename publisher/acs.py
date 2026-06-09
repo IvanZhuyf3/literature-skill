@@ -44,6 +44,43 @@ class ACSAdapter(PublisherAdapter):
             logger.error(f"Failed to load ACS page: {e}")
             return False
 
+    def check_access(self, page) -> bool:
+        """
+        检查是否有权限访问 ACS 论文。
+
+        用 PDF 链接存在性判断，不依赖基类的文本匹配。
+        ACS 页面正文/侧栏常包含 "Purchase"、"Access" 等字样，
+        基类文本匹配会误报（参见 error_log E-AAAS-01、E-SPRINGER-01）。
+        """
+        try:
+            # 有任何 PDF 相关链接就说明有权限
+            pdf_link = page.query_selector('a[href*="/doi/pdf/"]')
+            if pdf_link:
+                return True
+            # 也检查 Hi-Res PDF 按钮
+            hires = page.query_selector('a:has-text("Hi-Res PDF")')
+            if hires and hires.is_visible():
+                return True
+            # 通用 PDF 按钮
+            for sel in ['a[title="PDF"]', 'a.pdf-link']:
+                el = page.query_selector(sel)
+                if el and el.is_visible():
+                    return True
+        except Exception as e:
+            logger.debug(f"check_access exception: {e}")
+
+        # 最后 fallback：如果页面有 citation_doi meta 标签，说明论文页确实加载了
+        try:
+            doi = page.query_selector('meta[name="citation_doi"]')
+            if doi:
+                logger.info("check_access: citation_doi found, assuming access OK")
+                return True
+        except Exception:
+            pass
+
+        logger.warning("check_access: no PDF link or citation_doi found, access denied")
+        return False
+
     def find_download_element(self, page) -> Optional[Any]:
         """
         在 ACS 页面中定位 PDF 下载链接。
