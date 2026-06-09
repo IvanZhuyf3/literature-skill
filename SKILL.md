@@ -5,8 +5,9 @@ description: |
   - `/paper` → 做全套：下载 PDF + 提取元数据 + 添加到 Zotero + 挂载附件。
   - `/zot` → 只加进 Zotero：提取元数据 + 创建条目 + 挂载 PDF（不触发下载）。
   - `/paper download` → 只下载论文 PDF，不涉及 Zotero。
+  也支持从图片（PPT 拍照、截图）提取引用再走上述流程。触发词："extract citations from image", "这个图里的文献", "图片引用"。
   自然语言同义词也会触发："download paper", "get PDF", "fetch paper", "下载论文", "抓取论文", "批量下载" 走下载路径；"add to zotero", "save paper", "import paper", "收藏论文" 走 Zotero 路径。
-allowed-tools: Bash(uv:*), Bash(python:*)
+allowed-tools: Bash(uv:*), Bash(python:*), Bash(node:*)
 ---
 
 # 规则
@@ -24,6 +25,9 @@ allowed-tools: Bash(uv:*), Bash(python:*)
 - 所有命令设置 `PYTHONIOENCODING=utf-8` 避免 Windows GBK 编码问题。
 - 支持的出版商由 `<skill-base>/url_parser.py` 的 `PUBLISHER_PATTERNS` 自动匹配。
 - 下载失败时，先根据错误信息判断是运行时问题还是出版商适配器问题，再决定排查路径。
+- **图片引用提取**：用户发来 PPT 拍照、截图等图片时，先调 `ocr_citation.py` 提取引用，再根据用户意图走下载或 Zotero 流程。
+- `ocr_citation.py` 依赖 DeepSeek Vision API（`http://127.0.0.1:3000`）。如果服务未运行，先加载 `deepseek_vision` skill 启动它。
+- **OCR DOI 不可信**：DeepSeek Vision 读出的 DOI 可能不准，`ocr_citation.py` 会用 CrossRef API 确认。永远信任 CrossRef 返回的 DOI，不信任 OCR 的。
 
 # 工作流程
 
@@ -38,6 +42,7 @@ allowed-tools: Bash(uv:*), Bash(python:*)
 | 支持新出版商、URL 不认识 | 手动 | Step 2c：添加出版商 |
 | `/paper`、做全套 | `zot.py` | Step 3：全套工作流 |
 | `/zot`、只加 Zotero | `zot.py --no-download` | Step 4：仅 Zotero |
+| 图片提取引用、PPT 文献 | `ocr_citation.py` | Step 5：图片→引用 |
 
 如果意图不明确（如"这个怎么下载不了"），优先走排查路径。
 
@@ -114,6 +119,28 @@ allowed-tools: Bash(uv:*), Bash(python:*)
 | `zotero.{key} not configured` | 填入真实 Zotero API key 和 library ID |
 | `403 / Write access denied` | API key 需要写权限 |
 | PDF 下载失败 | 检查 Chromium 是否启动、出版商是否支持 |
+
+## Step 5：图片引用提取
+
+**前提**：DeepSeek Vision API 服务在 `http://127.0.0.1:3000` 运行。如果未运行，先加载 `deepseek_vision` skill 启动。
+
+1. **执行命令**：
+   ```bash
+   set PYTHONIOENCODING=utf-8 && python "<skill-base>/ocr_citation.py" "<图片路径>" --json
+   ```
+2. 脚本自动：DeepSeek Vision OCR → 解析引用 → CrossRef 确认 DOI
+3. 输出 JSON 格式的引用列表，每条包含 `crossref_doi` 和 `crossref_title`
+4. 拿到 DOI 后，根据用户意图走 Step 2a（下载）或 Step 3（全套）或 Step 4（仅 Zotero）
+5. **批量图片**：对每张图片分别运行 `ocr_citation.py`，收集所有 DOI 后统一处理
+
+### 图片引用故障排查
+
+| 问题 | 解决 |
+|------|------|
+| `DeepSeek Vision API` 连接失败 | 检查 `http://127.0.0.1:3000/health`，未运行则加载 `deepseek_vision` skill 启动 |
+| OCR 没有识别出引用 | 图片可能模糊或引用不完整，尝试 `--json` 看原始输出 |
+| CrossRef 找不到匹配 | OCR 标题可能有误，用 OCR 原文手动搜索 |
+| `browser closed` error | 重启 DeepSeekWeb2API 服务 |
 
 # 支持的出版商（23 家）
 
