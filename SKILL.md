@@ -1,19 +1,21 @@
 ---
 name: literature-skill
 description: |
-  学术文献一站式工具：下载论文 PDF 和/或添加到 Zotero。
-  两个功能集，通过关键词触发：
-  - **下载论文**（/download, /dl）：下载论文 PDF。触发词："download paper", "get PDF", "fetch paper", "下载论文", "抓取论文", "批量下载"。
-  - **Zotero 工作流**（/zot）：下载 PDF + 提取元数据 + 添加到 Zotero + 挂载附件。触发词："zot", "add to zotero", "save paper", "import paper", "收藏论文"。
+  学术文献一站式工具。三个 slash 命令，精确匹配：
+  - `/paper` → 做全套：下载 PDF + 提取元数据 + 添加到 Zotero + 挂载附件。
+  - `/zot` → 只加进 Zotero：提取元数据 + 创建条目 + 挂载 PDF（不触发下载）。
+  - `/paper download` → 只下载论文 PDF，不涉及 Zotero。
+  自然语言同义词也会触发："download paper", "get PDF", "fetch paper", "下载论文", "抓取论文", "批量下载" 走下载路径；"add to zotero", "save paper", "import paper", "收藏论文" 走 Zotero 路径。
 allowed-tools: Bash(uv:*), Bash(python:*)
 ---
 
 # 规则
 
 - 把当前 `SKILL.md` 所在目录视为 `<skill-base>`。所有本地资源从 `<skill-base>` 解析，不依赖调用方工作目录。
-- **两个功能入口**：
-  - `python "<skill-base>/main.py"` — 纯下载 PDF
-  - `python "<skill-base>/zot.py"` — Zotero 完整工作流（下载 + 添加 + 挂载）
+- **三个功能入口**：
+  - `/paper` → `python "<skill-base>/zot.py"` — 全套：下载 PDF + 添加到 Zotero + 挂载
+  - `/zot` → `python "<skill-base>/zot.py" --no-download` — 只加 Zotero：元数据 + 创建条目（不下载 PDF）
+  - `/paper download` → `python "<skill-base>/main.py"` — 只下载 PDF
 - **Chromium 启动有两种方式**（main.py 会自动处理）：
   - **已手动启动**（推荐，有机构登录状态）：用户用 `start_browser.bat` 或手动加 `--remote-debugging-port=9222` 启动，已登录机构账号。main.py 直接 CDP 连接。
   - **自动启动**（fallback）：如果 main.py 连接失败，会自动调用 `launch_browser()` 启动 Chromium。但自动启动使用独立临时 profile，**没有机构登录状态**，访问需要订阅的论文会失败。
@@ -31,10 +33,11 @@ allowed-tools: Bash(uv:*), Bash(python:*)
 
 | 用户意图 | 命令入口 | 路径 |
 |---------|---------|------|
-| 下载论文（提供 URL/DOI）、批量下载 | `main.py` | Step 2a：执行下载 |
+| `/paper download`、下载论文、批量下载 | `main.py` | Step 2a：执行下载 |
 | 下载失败、报错、找不到按钮 | `main.py --debug` | Step 2b：排查修复 |
 | 支持新出版商、URL 不认识 | 手动 | Step 2c：添加出版商 |
-| 添加到 Zotero、保存论文、收藏 | `zot.py` | Step 3：Zotero 工作流 |
+| `/paper`、做全套 | `zot.py` | Step 3：全套工作流 |
+| `/zot`、只加 Zotero | `zot.py --no-download` | Step 4：仅 Zotero |
 
 如果意图不明确（如"这个怎么下载不了"），优先走排查路径。
 
@@ -73,7 +76,7 @@ allowed-tools: Bash(uv:*), Bash(python:*)
 4. 创建适配器后，在 `<skill-base>/main.py` 注册、在 `<skill-base>/url_parser.py` 添加 URL 模式。
 5. 用真实 Chrome 测试。
 
-## Step 3：Zotero 工作流
+## Step 3：全套工作流（`/paper`）
 
 **前提**：`<skill-base>/config.yaml` 中的 `zotero` 部分已配置（API key + library ID）。
 
@@ -88,6 +91,20 @@ allowed-tools: Bash(uv:*), Bash(python:*)
    ZOT_RESULT: zot_key=XXXXXXXX|att_key=YYYYYYYY|local_pdf=C:\...\paper.pdf|title=Paper Title
    ```
 5. 即使 PDF 下载失败，也会先创建 Zotero 条目（保存元数据）。
+
+## Step 4：仅 Zotero（`/zot`）
+
+**前提**：`<skill-base>/config.yaml` 中的 `zotero` 部分已配置。
+
+1. **执行命令**：
+   ```bash
+   set PYTHONIOENCODING=utf-8 && python "<skill-base>/zot.py" --no-download "出版商URL"
+   ```
+2. 跳过 PDF 下载，只做：去重检查 → 元数据提取 → 创建 Zotero 条目
+3. 成功后输出机器可读行（无 `att_key` 和 `local_pdf`）：
+   ```
+   ZOT_RESULT: zot_key=XXXXXXXX|title=Paper Title
+   ```
 
 ### Zotero 故障排查
 

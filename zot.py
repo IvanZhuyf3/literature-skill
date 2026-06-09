@@ -469,14 +469,21 @@ def resolve_local_pdf(att_key: str, cfg: dict) -> str:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    if len(sys.argv) < 2:
+    import argparse
+    parser = argparse.ArgumentParser(description="zot: Add paper to Zotero library")
+    parser.add_argument("url", nargs="?", help="Paper URL or DOI")
+    parser.add_argument("--no-download", action="store_true", help="Skip PDF download, only create Zotero item with metadata")
+    args = parser.parse_args()
+
+    if not args.url:
         console.print("Usage: [bold]python zot.py <URL>[/bold]")
         console.print('  python zot.py "https://opg.optica.org/oe/fulltext.cfm?uri=oe-34-10-18068"')
         console.print('  python zot.py "https://www.nature.com/articles/s41586-023-06139-9"')
-        console.print('  python zot.py "https://arxiv.org/abs/2301.00001"')
+        console.print('  python zot.py --no-download "URL"  # skip PDF download')
         sys.exit(1)
 
-    url = sys.argv[1]
+    url = args.url
+    skip_download = args.no_download
     cfg = load_config()
 
     console.print(f"\n[bold cyan]━━━ zot: {url[:80]}{'...' if len(url) > 80 else ''} ━━━[/bold cyan]\n")
@@ -515,20 +522,24 @@ def main() -> None:
         print(f"ZOT_RESULT: {'|'.join(result_parts)}")
         return
 
-    # Step 2: Download PDF
-    console.print(f"\n[bold]Step 2/4:[/bold] Downloading PDF via paper_at_home...")
-    try:
-        pdf_path = download_pdf(url, cfg)
-    except Exception as e:
-        console.print(f"[yellow]⚠ PDF download failed: {e}[/yellow]")
-        # Still create the item so at least the metadata is saved
-        console.print("[dim]Creating Zotero item anyway (no PDF)...[/dim]")
+    # Step 2: Download PDF (or skip)
+    pdf_path = None
+    if skip_download:
+        console.print(f"\n[bold]Step 2/4:[/bold] Skipping PDF download (--no-download).")
+    else:
+        console.print(f"\n[bold]Step 2/4:[/bold] Downloading PDF...")
         try:
-            item_key = add_to_zotero(meta, cfg)
-            console.print(f"[dim]Item {item_key} created. Retry PDF later.[/dim]")
-        except Exception as e2:
-            console.print(f"[red]Also failed to create item: {e2}[/red]")
-        sys.exit(1)
+            pdf_path = download_pdf(url, cfg)
+        except Exception as e:
+            console.print(f"[yellow]⚠ PDF download failed: {e}[/yellow]")
+            # Still create the item so at least the metadata is saved
+            console.print("[dim]Creating Zotero item anyway (no PDF)...[/dim]")
+            try:
+                item_key = add_to_zotero(meta, cfg)
+                console.print(f"[dim]Item {item_key} created. Retry PDF later.[/dim]")
+            except Exception as e2:
+                console.print(f"[red]Also failed to create item: {e2}[/red]")
+            sys.exit(1)
 
     # Step 3: Create Zotero item with full metadata
     console.print(f"\n[bold]Step 3/4:[/bold] Creating Zotero item...")
@@ -539,15 +550,19 @@ def main() -> None:
         console.print(f"[dim]PDF is at: {pdf_path}[/dim]")
         sys.exit(1)
 
-    # Step 4: Attach PDF
-    console.print(f"\n[bold]Step 4/4:[/bold] Attaching PDF to Zotero item {item_key}...")
-    try:
-        att_key = attach_pdf(item_key, pdf_path, cfg)
-    except Exception as e:
-        console.print(f"[yellow]⚠ Item created and PDF downloaded, but attachment failed: {e}[/yellow]")
-        console.print(f"[dim]PDF is at: {pdf_path}[/dim]")
-        console.print(f"[dim]Item key: {item_key} — attach manually in Zotero.[/dim]")
-        sys.exit(1)
+    # Step 4: Attach PDF (only if downloaded)
+    if pdf_path:
+        console.print(f"\n[bold]Step 4/4:[/bold] Attaching PDF to Zotero item {item_key}...")
+        try:
+            att_key = attach_pdf(item_key, pdf_path, cfg)
+        except Exception as e:
+            console.print(f"[yellow]⚠ Item created and PDF downloaded, but attachment failed: {e}[/yellow]")
+            console.print(f"[dim]PDF is at: {pdf_path}[/dim]")
+            console.print(f"[dim]Item key: {item_key} — attach manually in Zotero.[/dim]")
+            sys.exit(1)
+    else:
+        att_key = ""
+        console.print(f"\n[bold]Step 4/4:[/bold] No PDF to attach (skipped download).")
 
     # Done
     local_pdf = resolve_local_pdf(att_key, cfg)
