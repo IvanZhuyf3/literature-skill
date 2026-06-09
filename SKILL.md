@@ -4,7 +4,7 @@ description: |
   学术文献一站式工具。主命令 `/literature-skill`，子命令作为参数传入：
   - `/literature-skill -paper <DOI/URL>` → 做全套：下载 PDF + 生成 QR 码 + 提取元数据 + 添加到 Zotero + 挂载附件。
   - `/literature-skill -download <DOI/URL>` → 只下载论文 PDF，不涉及 Zotero。
-  - `/literature-skill -pdf <DOI/关键词>` → 查找已下载的 PDF 文件路径。
+  - `/literature-skill -pdf <DOI/关键词>` → 查找已下载的 PDF 文件路径，通过微信/Telegram 发送文件。
   - `/literature-skill -qr <DOI>` → 根据 DOI 生成 QR 码图片（指向 https://doi.org/xxx）。
   - `/literature-skill -zot <DOI/URL>` → 只加进 Zotero：提取元数据 + 创建条目 + 挂载 PDF（不触发下载）。
   也支持从图片（PPT 拍照、截图）提取引用再走上述流程。触发词："extract citations from image", "这个图里的文献", "图片引用"。
@@ -165,13 +165,20 @@ allowed-tools: Bash(uv:*), Bash(python:*), Bash(node:*)
 3. 可选 `--output <目录>` 指定输出目录
 4. DOI 格式自动处理：`10.1039/d1an00412c`、`https://doi.org/10.1039/d1an00412c` 均可
 
-## Step 7：查找 PDF（`-pdf`）
+## Step 7：查找并发送 PDF（`-pdf`）
 
-根据 DOI、标题关键词或文件名在下载目录中查找已有的 PDF 文件。
+根据 DOI、标题关键词或文件名在下载目录中查找已有的 PDF 文件，然后发送给用户。
 
 1. **搜索范围**：`<skill-base>/download/` 下所有 `.pdf` 文件
 2. 用 `search_files` 工具按文件名或内容搜索
-3. 返回匹配的 PDF 文件绝对路径
+3. **发送文件**：在回复末尾单独一行写 `MEDIA:<pdf绝对路径>`（注意是英文冒号，路径不含空格）。示例：
+   ```
+   MEDIA:C:\Users\Ivanz\OneDrive\Hermes_workspace\Literature_skill\download\10.1039_d1an00412c.pdf
+   ```
+   Gateway 会自动检测 `MEDIA:` 标签并调用平台的原生文件发送方法（微信→`send_document`，Telegram→`send_document`）。
+4. **CLI 模式**：如果用户在 CLI（非 gateway），`MEDIA:` 标签不会被处理，只需报告文件路径即可。
+5. **多个 PDF**：可以写多行 `MEDIA:`，每行一个文件。
+6. **PDF 不存在**：只报告路径，不发 `MEDIA:` 标签。
 
 # 支持的出版商（23 家）
 
