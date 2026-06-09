@@ -1,1 +1,30 @@
+# Secrets
+config.yaml
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+
+# Downloads
+*.pdf
+*.log
+
+# Build temp
 temp/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+.env
+
+# Debug output
+debug_screenshots/

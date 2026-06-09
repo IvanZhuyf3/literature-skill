@@ -1,0 +1,37 @@
+# Literature Skill 配置文件模板
+# 复制为 config.yaml 并填入你的凭据
+
+chrome:
+  # CDP 连接地址（端口可能被 Hyper-V 占用，本机用 19222）
+  cdp_url: "http://127.0.0.1:9222"
+  # Chromium 浏览器路径
+  chrome_path: "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe"
+  # 用户数据目录（保留登录状态）
+  user_data_dir: "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data"
+  warmup_url: "https://en.wikipedia.org/wiki/Special:Random"
+
+download:
+  temp_dir: "C:\\Users\\YOUR_NAME\\Downloads\\temp"
+  timeout: 120
+
+rate:
+  min_delay: 60
+  max_delay: 180
+  session_limit: 20
+  reading_time_min: 15
+  reading_time_max: 45
+  pre_click_delay_min: 5
+  pre_click_delay_max: 15
+
+debug:
+  enabled: true
+  screenshot_dir: "./debug_screenshots"
+  screenshot_on_failure: true
+
+# Zotero 配置 — 用于 zot.py（/zot 命令）
+# 如果只用 /download 功能，可以不填这部分
+zotero:
+  library_id: "YOUR_LIBRARY_ID"
+  api_key: "YOUR_API_KEY"
+  library_type: "user"
+  storage_path: "C:\\Users\\YOUR_NAME\\Zotero\\storage"

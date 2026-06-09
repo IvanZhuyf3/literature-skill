@@ -1,0 +1,7 @@
+# Literature Skill 依赖（全局安装，不需要虚拟环境）
+requests>=2.31           # HTTP 请求（DOI 解析、CrossRef API）
+pyyaml>=6.0              # YAML 配置读取
+rich>=13.0               # CLI 美化输出
+playwright>=1.40.0       # CDP 连接浏览器
+pyautogui>=0.9.54        # OS 级真实鼠标/键盘操作
+pyzotero>=1.5.0          # Zotero API 客户端
