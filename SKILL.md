@@ -1,22 +1,26 @@
 ---
 name: literature-skill
 description: |
-  学术文献一站式工具。三个 slash 命令，精确匹配：
-  - `/paper` → 做全套：下载 PDF + 提取元数据 + 添加到 Zotero + 挂载附件。
-  - `/zot` → 只加进 Zotero：提取元数据 + 创建条目 + 挂载 PDF（不触发下载）。
+  学术文献一站式工具。Slash 命令，精确匹配：
+  - `/paper` → 做全套：下载 PDF + 生成 QR 码 + 提取元数据 + 添加到 Zotero + 挂载附件。
   - `/paper download` → 只下载论文 PDF，不涉及 Zotero。
+  - `/paper pdf` → 查找已下载的 PDF 文件路径。
+  - `/paper qr` → 根据 DOI 生成 QR 码图片（指向 https://doi.org/xxx）。
+  - `/zot` → 只加进 Zotero：提取元数据 + 创建条目 + 挂载 PDF（不触发下载）。
   也支持从图片（PPT 拍照、截图）提取引用再走上述流程。触发词："extract citations from image", "这个图里的文献", "图片引用"。
-  自然语言同义词也会触发："download paper", "get PDF", "fetch paper", "下载论文", "抓取论文", "批量下载" 走下载路径；"add to zotero", "save paper", "import paper", "收藏论文" 走 Zotero 路径。
+  自然语言同义词也会触发："download paper", "get PDF", "fetch paper", "下载论文", "抓取论文", "批量下载" 走下载路径；"add to zotero", "save paper", "import paper", "收藏论文" 走 Zotero 路径；"二维码", "QR code" 走 QR 路径。
 allowed-tools: Bash(uv:*), Bash(python:*), Bash(node:*)
 ---
 
 # 规则
 
 - 把当前 `SKILL.md` 所在目录视为 `<skill-base>`。所有本地资源从 `<skill-base>` 解析，不依赖调用方工作目录。
-- **三个功能入口**：
-  - `/paper` → `python "<skill-base>/zot.py"` — 全套：下载 PDF + 添加到 Zotero + 挂载
+- **五个功能入口**：
+  - `/paper` → `python "<skill-base>/zot.py"` — 全套：下载 PDF + 生成 QR + 添加到 Zotero + 挂载
   - `/zot` → `python "<skill-base>/zot.py" --no-download` — 只加 Zotero：元数据 + 创建条目（不下载 PDF）
   - `/paper download` → `python "<skill-base>/main.py"` — 只下载 PDF
+  - `/paper qr` → `python "<skill-base>/generate_qr.py"` — 只生成 QR 码
+  - `/paper pdf` → 查找已下载的 PDF 文件路径（纯文件搜索，无脚本）
 - **Chromium 启动有两种方式**（main.py 会自动处理）：
   - **已手动启动**（推荐，有机构登录状态）：用户用 `start_browser.bat` 或手动加 `--remote-debugging-port=9222` 启动，已登录机构账号。main.py 直接 CDP 连接。
   - **自动启动**（fallback）：如果 main.py 连接失败，会自动调用 `launch_browser()` 启动 Chromium。但自动启动使用独立临时 profile，**没有机构登录状态**，访问需要订阅的论文会失败。
@@ -43,6 +47,8 @@ allowed-tools: Bash(uv:*), Bash(python:*), Bash(node:*)
 | `/paper`、做全套 | `zot.py` | Step 3：全套工作流 |
 | `/zot`、只加 Zotero | `zot.py --no-download` | Step 4：仅 Zotero |
 | 图片提取引用、PPT 文献 | `ocr_citation.py` | Step 5：图片→引用 |
+| `/paper qr`、二维码、QR code | `generate_qr.py` | Step 6：生成 QR 码 |
+| `/paper pdf`、找 PDF、论文文件 | 文件搜索 | Step 7：查找 PDF |
 
 如果意图不明确（如"这个怎么下载不了"），优先走排查路径。
 
@@ -96,6 +102,11 @@ allowed-tools: Bash(uv:*), Bash(python:*), Bash(node:*)
    ZOT_RESULT: zot_key=XXXXXXXX|att_key=YYYYYYYY|local_pdf=C:\...\paper.pdf|title=Paper Title
    ```
 5. 即使 PDF 下载失败，也会先创建 Zotero 条目（保存元数据）。
+6. **生成 QR 码**：从输出中提取 DOI，运行：
+   ```bash
+   set PYTHONIOENCODING=utf-8 && python "<skill-base>/generate_qr.py" "<DOI>"
+   ```
+   生成 QR 码保存到 `<skill-base>/download/temp/<DOI>.png`。
 
 ## Step 4：仅 Zotero（`/zot`）
 
@@ -141,6 +152,26 @@ allowed-tools: Bash(uv:*), Bash(python:*), Bash(node:*)
 | OCR 没有识别出引用 | 图片可能模糊或引用不完整，尝试 `--json` 看原始输出 |
 | CrossRef 找不到匹配 | OCR 标题可能有误，用 OCR 原文手动搜索 |
 | `browser closed` error | 重启 DeepSeekWeb2API 服务 |
+
+## Step 6：生成 QR 码（`/paper qr`）
+
+给定 DOI，生成指向 `https://doi.org/<DOI>` 的 QR 码图片。
+
+1. **执行命令**：
+   ```bash
+   set PYTHONIOENCODING=utf-8 && python "<skill-base>/generate_qr.py" "<DOI>"
+   ```
+2. 输出：`<skill-base>/download/temp/<DOI_slug>.png` 的绝对路径
+3. 可选 `--output <目录>` 指定输出目录
+4. DOI 格式自动处理：`10.1039/d1an00412c`、`https://doi.org/10.1039/d1an00412c` 均可
+
+## Step 7：查找 PDF（`/paper pdf`）
+
+根据 DOI、标题关键词或文件名在下载目录中查找已有的 PDF 文件。
+
+1. **搜索范围**：`<skill-base>/download/` 下所有 `.pdf` 文件
+2. 用 `search_files` 工具按文件名或内容搜索
+3. 返回匹配的 PDF 文件绝对路径
 
 # 支持的出版商（23 家）
 

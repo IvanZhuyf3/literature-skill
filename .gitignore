@@ -28,3 +28,5 @@ Desktop.ini
 
 # Debug output
 debug_screenshots/
+download/temp/
+*.png
