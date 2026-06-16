@@ -1119,7 +1119,8 @@ def retry_failed(papers: list[dict], cfg: dict,
 def download_batch(papers: list[dict], cfg: dict, collection_key: str,
                    resume: bool = True,
                    retry_timeout: int | None = None,
-                   save_callback=None) -> list[dict]:
+                   save_callback=None,
+                   max_downloads: int | None = None) -> list[dict]:
     """Download papers linearly (one at a time).
     
     With resume=True, skips papers that already have dl_status='success'.
@@ -1152,6 +1153,9 @@ def download_batch(papers: list[dict], cfg: dict, collection_key: str,
     console.print(f"  To download: {len(to_download)} (skipped {len(papers_sorted) - len(to_download)})")
     
     for i, paper in enumerate(to_download):
+        if max_downloads and i >= max_downloads:
+            console.print(f"\n  [yellow]Reached max_downloads limit ({max_downloads}), stopping.[/yellow]")
+            break
         console.print(f"\n  [{i+1}/{len(to_download)}]")
         download_one_paper(paper, cfg, collection_key, timeout=retry_timeout)
         
@@ -1386,7 +1390,8 @@ def main():
         collection_key = ensure_scholar_collection(scholar_name, cfg)
         sname, sid = scholar_name, data.get("scholar_id", "")
         papers = download_batch(papers, cfg, collection_key, resume=True,
-                                save_callback=lambda p: save_papers(p, sname, sid))
+                                save_callback=lambda p: save_papers(p, sname, sid),
+                                max_downloads=args.max_papers)
         save_papers(papers, sname, sid)
         return
     
