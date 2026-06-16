@@ -981,13 +981,31 @@ def download_one_paper(paper: dict, cfg: dict, collection_key: str,
         import zot
         from pyzotero import zotero as zotero_mod
         
-        # ── Step 1: Ensure Zotero item exists (State ② → reuse key, State ③ → create) ──
-        item_key = paper.get("zotero_key", "")
+        # ── Step 1: Resolve Zotero item by DOI (always, don't trust stored key) ──
+        # Zotero auto-retrieves metadata which may change item identity.
+        # DOI is the stable identifier — always look up by DOI first.
+        zcfg = cfg["zotero"]
+        zot_client = zotero_mod.Zotero(zcfg["library_id"], zcfg.get("library_type", "user"), zcfg["api_key"])
+        
+        item_key = ""
+        # Search by DOI in the library
+        try:
+            results = zot_client.items(q=doi, qmode="everything", limit=5)
+            for r in results:
+                rd = r.get("data", {})
+                if rd.get("itemType") in ("attachment", "note"):
+                    continue
+                if rd.get("DOI", "").lower().strip() == doi.lower().strip():
+                    item_key = r["key"]
+                    break
+        except Exception:
+            pass
+        
         if item_key:
-            # State ②: already registered, verify it still exists
-            console.print(f"    [dim]Using existing Zotero item: {item_key}[/dim]")
+            console.print(f"    [dim]Found by DOI: {item_key}[/dim]")
+            paper["zotero_key"] = item_key
         else:
-            # State ③: create new item (add_to_zotero has built-in dedup)
+            # Not found by DOI — create new (add_to_zotero has built-in dedup)
             meta = {
                 "DOI": doi,
                 "title": title,
@@ -1002,14 +1020,12 @@ def download_one_paper(paper: dict, cfg: dict, collection_key: str,
             
             item_key = zot.add_to_zotero(meta, cfg)
             paper["zotero_key"] = item_key
-            console.print(f"    [dim]Zotero item: {item_key}[/dim]")
+            console.print(f"    [dim]Created Zotero item: {item_key}[/dim]")
         
         # Assign to collection (idempotent — skips if already assigned)
         _assign_to_collection(item_key, collection_key, cfg)
         
         # ── Step 2: Check if item already has a PDF attachment ──
-        zcfg = cfg["zotero"]
-        zot_client = zotero_mod.Zotero(zcfg["library_id"], zcfg.get("library_type", "user"), zcfg["api_key"])
         children = zot_client.children(item_key)
         has_pdf = any(
             c.get("data", {}).get("contentType") == "application/pdf"
