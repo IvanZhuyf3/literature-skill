@@ -275,8 +275,14 @@ def _crossref_lookup(doi: str) -> dict | None:
 # Step 2: Download PDF via Paper-at-Home
 # ---------------------------------------------------------------------------
 
-def download_pdf(url: str, cfg: dict) -> Path:
-    """Call main.py (same directory) to download the PDF. Returns local file path."""
+def download_pdf(url: str, cfg: dict, timeout: int = 120) -> Path:
+    """Call main.py (same directory) to download the PDF. Returns local file path.
+    
+    Args:
+        url: Paper URL or DOI to download
+        cfg: Configuration dict
+        timeout: Max seconds to wait for main.py subprocess (default 120s)
+    """
     main_py = SKILL_BASE / "main.py"
     if not main_py.exists():
         console.print(f"[red]main.py not found at {main_py}[/red]")
@@ -289,13 +295,18 @@ def download_pdf(url: str, cfg: dict) -> Path:
         cmd.extend(["--output", download_dir])
 
     console.print(f"[dim]Running paper_at_home...[/dim]")
-    result = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
-    )
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=timeout,
+            env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+        )
+    except subprocess.TimeoutExpired:
+        console.print(f"[red]PDF download timed out after {timeout}s.[/red]")
+        raise RuntimeError(f"paper_at_home timed out ({timeout}s), publisher page hung")
 
     pdf_path = _parse_download_output(result.stdout + result.stderr)
     if pdf_path is None:

@@ -95,6 +95,13 @@ PUBLISHER_PATTERNS = {
     "spie": [
         r"spiedigitallibrary\.org",
     ],
+    "biorxiv": [
+        r"biorxiv\.org",
+        r"medrxiv\.org",
+    ],
+    "jci_insight": [
+        r"insight\.jci\.org",
+    ],
 }
 
 

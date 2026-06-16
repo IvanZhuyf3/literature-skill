@@ -88,6 +88,7 @@ CONFERENCE_KEYWORDS = [
     "European Conferences on Biomedical Optics",
     "microscopy.",  # e.g. "Microscopy. 2024"
     "Fio.", "FM6E", "M1A", "MM1A", "JTU",
+    "Advanced Chemical Microscopy",  # SPIE conference
 ]
 
 
@@ -695,8 +696,15 @@ def print_summary(papers: list[dict], scholar_name: str):
 # Phase 3: Batch Download (linear, one paper per invocation for cron)
 # ---------------------------------------------------------------------------
 
-def download_one_paper(paper: dict, cfg: dict, collection_key: str) -> dict:
+def download_one_paper(paper: dict, cfg: dict, collection_key: str,
+                       timeout: int | None = None) -> dict:
     """Download a single paper, add to Zotero, attach PDF, assign to collection.
+    
+    Args:
+        paper: Paper metadata dict
+        cfg: Config dict
+        collection_key: Zotero collection to file into
+        timeout: Override download timeout (default: 120 from zot.download_pdf)
     
     Returns updated paper dict with download status.
     """
@@ -732,9 +740,10 @@ def download_one_paper(paper: dict, cfg: dict, collection_key: str) -> dict:
         sys.path.insert(0, str(Path(__file__).parent))
         import zot
         
-        # Step 1: Download PDF (pass resolved publisher URL)
+        # Step 1: Download PDF (pass resolved publisher URL, with timeout)
         console.print("    [dim]Downloading PDF...[/dim]")
-        pdf_path = zot.download_pdf(download_url, cfg)
+        dl_timeout = timeout if timeout is not None else 120
+        pdf_path = zot.download_pdf(download_url, cfg, timeout=dl_timeout)
         
         # Step 2: Create Zotero item with metadata from CrossRef
         meta = {
@@ -786,13 +795,91 @@ def _assign_to_collection(item_key: str, collection_key: str, cfg: dict):
         zot.update_item(item)
 
 
+def retry_failed(papers: list[dict], cfg: dict,
+                 scholar_name: str, scholar_id: str) -> list[dict]:
+    """Second-round retry for papers that failed in the first batch.
+    
+    Classification:
+      - SPIE conference (DOI 10.1117/12.) -> mark as 'conference', skip
+      - Timeout failures -> retry with 180s timeout
+      - 'did not produce a PDF' -> retry (new adapters may exist now)
+      - Already success/no_doi -> skip
+    
+    Returns updated papers list.
+    """
+    console.print(f"\n[bold cyan]━━━ Round 2 Retry ━━━[/bold cyan]\n")
+    
+    failed = [p for p in papers if p.get("dl_status") == "failed"]
+    if not failed:
+        console.print("  [green]No failed papers to retry.[/green]")
+        return papers
+    
+    collection_key = ensure_scholar_collection(scholar_name, cfg)
+    retried = 0
+    skipped = 0
+    
+    for i, paper in enumerate(failed):
+        doi = paper.get("doi", "")
+        err = paper.get("dl_error", "")
+        title = paper.get("title", "")[:60]
+        
+        console.print(f"\n  [{i+1}/{len(failed)}] {title}")
+        
+        # 1. SPIE conference DOI prefix -> mark as conference, skip
+        if doi.startswith("10.1117/12."):
+            paper["dl_status"] = "conference"
+            paper["dl_error"] = "SPIE conference proceeding, filtered out"
+            console.print(f"    [yellow]skip SPIE conference[/yellow]")
+            skipped += 1
+            save_papers(papers, scholar_name, scholar_id)
+            continue
+        
+        # 2. Timeout failures -> retry with longer timeout
+        if "timed out" in err:
+            paper["dl_status"] = ""
+            console.print(f"    [dim]Timeout -> retry 180s[/dim]")
+            download_one_paper(paper, cfg, collection_key, timeout=180)
+            retried += 1
+        
+        # 3. "did not produce a PDF" -> retry (may have new adapter)
+        elif "did not produce a PDF" in err:
+            paper["dl_status"] = ""
+            console.print(f"    [dim]Publisher issue -> retry[/dim]")
+            download_one_paper(paper, cfg, collection_key)
+            retried += 1
+        
+        # 4. Other -> retry with default
+        else:
+            paper["dl_status"] = ""
+            console.print(f"    [dim]Unknown failure -> retry[/dim]")
+            download_one_paper(paper, cfg, collection_key)
+            retried += 1
+        
+        save_papers(papers, scholar_name, scholar_id)
+    
+    success = sum(1 for p in failed if p.get("dl_status") == "success")
+    failed_again = sum(1 for p in failed if p.get("dl_status") == "failed")
+    conference = sum(1 for p in failed if p.get("dl_status") == "conference")
+    
+    console.print(f"\n  [bold]Retry Summary:[/bold]")
+    console.print(f"    OK: {success}  Failed: {failed_again}  Conference: {conference}")
+    
+    return papers
+
+
 def download_batch(papers: list[dict], cfg: dict, collection_key: str,
-                   resume: bool = True) -> list[dict]:
+                   resume: bool = True,
+                   retry_timeout: int | None = None,
+                   save_callback=None) -> list[dict]:
     """Download papers linearly (one at a time).
     
     With resume=True, skips papers that already have dl_status='success'.
     Each download uses the full rate-limiting from config.
     Designed to be called by a cron job that runs once per ~10 minutes.
+    
+    Args:
+        save_callback: Optional callable(papers) to save progress after each paper
+        retry_timeout: If set, override per-paper timeout (for retrying failed papers)
     """
     console.print(f"\n[bold cyan]━━━ Phase 3: 批量下载 ({len(papers)} 篇) ━━━[/bold cyan]\n")
     
@@ -817,10 +904,14 @@ def download_batch(papers: list[dict], cfg: dict, collection_key: str,
     
     for i, paper in enumerate(to_download):
         console.print(f"\n  [{i+1}/{len(to_download)}]")
-        download_one_paper(paper, cfg, collection_key)
+        download_one_paper(paper, cfg, collection_key, timeout=retry_timeout)
         
         # Save progress after each paper (for resume / crash recovery)
-        # Caller should save the full papers list
+        if save_callback:
+            try:
+                save_callback(papers)
+            except Exception as e:
+                console.print(f"    [yellow]Progress save failed: {e}[/yellow]")
     
     # Summary
     success = sum(1 for p in papers if p.get("dl_status") == "success")
@@ -1012,10 +1103,12 @@ def main():
                         help="Enable Phase 3 download (default: disabled for safety)")
     parser.add_argument("--scholar-name", type=str, default=None,
                         help="Override scholar name (for --download-only/--template-only)")
+    parser.add_argument("--retry", action="store_true",
+                        help="Retry failed papers: load existing json, retry failed downloads")
     
     args = parser.parse_args()
     
-    if not args.url and not (args.download_only or args.template_only):
+    if not args.url and not (args.download_only or args.template_only or args.retry):
         console.print("Usage: [bold]python people.py <Scholar URL>[/bold]")
         console.print('  python people.py "https://scholar.google.com/citations?user=XXXX" --scrape-only')
         console.print('  python people.py "URL" --download          # scrape + DOI + download')
@@ -1042,7 +1135,22 @@ def main():
         
         # download-only
         collection_key = ensure_scholar_collection(scholar_name, cfg)
-        papers = download_batch(papers, cfg, collection_key, resume=True)
+        sname, sid = scholar_name, data.get("scholar_id", "")
+        papers = download_batch(papers, cfg, collection_key, resume=True,
+                                save_callback=lambda p: save_papers(p, sname, sid))
+        save_papers(papers, sname, sid)
+        return
+    
+    # ── Retry failed papers ──
+    if args.retry:
+        sn = args.scholar_name or "Yifan Zhu"
+        data = load_papers(sn)
+        if not data:
+            console.print(f"[red]No saved papers found for '{sn}'. Run --scrape-only first.[/red]")
+            sys.exit(1)
+        papers = data["papers"]
+        scholar_name = data.get("scholar_name", sn)
+        papers = retry_failed(papers, cfg, scholar_name, data.get("scholar_id", ""))
         save_papers(papers, scholar_name, data.get("scholar_id", ""))
         return
     
@@ -1086,7 +1194,8 @@ def main():
     
     # ── Phase 3: Download ──
     if args.download:
-        papers = download_batch(papers, cfg, collection_key, resume=True)
+        papers = download_batch(papers, cfg, collection_key, resume=True,
+                                save_callback=lambda p: save_papers(p, scholar_name, scholar_id, scholar_url=args.url))
         save_papers(papers, scholar_name, scholar_id, scholar_url=args.url)
     else:
         console.print(f"\n[dim]Phase 3 (download) skipped. Use --download to enable.[/dim]")

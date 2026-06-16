@@ -1,8 +1,8 @@
 {
   "scholar_name": "Yifan Zhu",
   "scholar_id": "tSWxyLwAAAAJ",
-  "scholar_url": "https://scholar.google.com/citations?user=tSWxyLwAAAAJ&hl=en",
-  "scraped_at": "2026-06-15 21:31:03",
+  "scholar_url": "",
+  "scraped_at": "2026-06-15 22:59:56",
   "paper_count": 24,
   "papers": [
     {
@@ -30,7 +30,10 @@
       "doi": "10.1002/open.201800008",
       "type": "journal",
       "doi_status": "matched",
-      "doi_score": 0.976
+      "doi_score": 0.976,
+      "zotero_key": "6526CQS3",
+      "attachment_key": "I4CJ84K3",
+      "dl_status": "success"
     },
     {
       "title": "Synthesis and study of Au (iii)–indolizine derivatives: turn-on luminescence by photo-induced controlled release",
@@ -42,7 +45,10 @@
       "doi": "10.1039/c8cc10177a",
       "type": "journal",
       "doi_status": "matched",
-      "doi_score": 0.968
+      "doi_score": 0.968,
+      "zotero_key": "F36MHVX8",
+      "attachment_key": "FC2FB8TN",
+      "dl_status": "success"
     },
     {
       "title": "Transient absorption microscopy: Technological innovations and applications in materials science and life science",
@@ -54,7 +60,10 @@
       "doi": "10.1063/1.5129123",
       "type": "journal",
       "doi_status": "matched",
-      "doi_score": 1.0
+      "doi_score": 1.0,
+      "zotero_key": "NSER7VBR",
+      "attachment_key": "6AQCD4IC",
+      "dl_status": "success"
     },
     {
       "title": "Polymer electrochromism driven by metabolic activity facilitates rapid and facile bacterial detection and susceptibility evaluation",
@@ -66,7 +75,10 @@
       "doi": "10.1002/adfm.202005192",
       "type": "journal",
       "doi_status": "matched",
-      "doi_score": 1.0
+      "doi_score": 1.0,
+      "zotero_key": "BT9JEJNR",
+      "attachment_key": "AWNVFKZU",
+      "dl_status": "success"
     },
     {
       "title": "Neural stimulation in vitro and in vivo by photoacoustic nanotransducers",
@@ -78,7 +90,9 @@
       "doi": "10.1016/j.matt.2020.11.019",
       "type": "journal",
       "doi_status": "matched",
-      "doi_score": 0.972
+      "doi_score": 0.972,
+      "dl_status": "failed",
+      "dl_error": "paper_at_home timed out (120s), publisher page hung"
     },
     {
       "title": "Multiwindow SRS imaging using a rapid widely tunable fiber laser",
@@ -90,7 +104,10 @@
       "doi": "10.1021/acs.analchem.1c03604",
       "type": "journal",
       "doi_status": "matched",
-      "doi_score": 1.0
+      "doi_score": 1.0,
+      "zotero_key": "VACP5STV",
+      "attachment_key": "7TE5FEWI",
+      "dl_status": "success"
     },
     {
       "title": "The switchable phosphorescence and delayed fluorescence of a new rhodamine-like dye through allenylidene formation in a cyclometallated platinum (ii) system",
@@ -102,7 +119,10 @@
       "doi": "10.1039/d1sc02787e",
       "type": "journal",
       "doi_status": "matched",
-      "doi_score": 0.977
+      "doi_score": 0.977,
+      "zotero_key": "85CZAWN5",
+      "attachment_key": "QD7APUTG",
+      "dl_status": "success"
     },
     {
       "title": "Photoinactivation of catalase sensitizes a wide range of bacteria to ROS-producing agents and immune cells",
@@ -114,7 +134,9 @@
       "doi": "10.1172/jci.insight.153079",
       "type": "journal",
       "doi_status": "matched",
-      "doi_score": 1.0
+      "doi_score": 1.0,
+      "dl_status": "failed",
+      "dl_error": "paper_at_home did not produce a PDF file"
     },
     {
       "title": "Structure-property relationships of photofunctional diiridium (II) complexes with tetracationic charge and an unsupported Ir–Ir bond",
@@ -126,7 +148,11 @@
       "doi": "10.1038/s42004-022-00775-4",
       "type": "journal",
       "doi_status": "matched",
-      "doi_score": 0.996
+      "doi_score": 0.996,
+      "dl_status": "success",
+      "dl_error": "paper_at_home did not produce a PDF file",
+      "zotero_key": "EBGJ8QF3",
+      "attachment_key": "ZXPF9RI8"
     },
     {
       "title": "Stimulated Raman photothermal microscopy toward ultrasensitive chemical imaging",
@@ -138,7 +164,10 @@
       "doi": "10.1126/sciadv.adi2181",
       "type": "journal",
       "doi_status": "matched",
-      "doi_score": 1.0
+      "doi_score": 1.0,
+      "zotero_key": "CB2N9ENF",
+      "attachment_key": "W6HK7T5Q",
+      "dl_status": "success"
     },
     {
       "title": "Photothermally Detected Stimulated Raman Microscopy towards Ultrasensitive Chemical Imaging",
@@ -150,7 +179,9 @@
       "doi": "10.1101/2023.03.06.531387",
       "type": "journal",
       "doi_status": "matched",
-      "doi_score": 0.95
+      "doi_score": 0.95,
+      "dl_status": "failed",
+      "dl_error": "paper_at_home did not produce a PDF file"
     },
     {
       "title": "Millimetre-deep micrometre-resolution vibrational imaging by shortwave infrared photothermal microscopy",
@@ -162,7 +193,10 @@
       "doi": "10.1038/s41566-024-01463-6",
       "type": "journal",
       "doi_status": "matched",
-      "doi_score": 1.0
+      "doi_score": 1.0,
+      "zotero_key": "FZA2R9TM",
+      "attachment_key": "6XR7Z632",
+      "dl_status": "success"
     },
     {
       "title": "Overtone photothermal microscopy for high-resolution and high-sensitivity vibrational imaging",
@@ -174,7 +208,10 @@
       "doi": "10.1038/s41467-024-49691-2",
       "type": "journal",
       "doi_status": "matched",
-      "doi_score": 1.0
+      "doi_score": 1.0,
+      "zotero_key": "T52V65GH",
+      "attachment_key": "KGQMMWR3",
+      "dl_status": "success"
     },
     {
       "title": "The Parkinson’s disease drug entacapone disrupts gut microbiome homeostasis via iron sequestration",
@@ -186,7 +223,9 @@
       "doi": "10.1038/s41564-024-01853-0",
       "type": "journal",
       "doi_status": "matched",
-      "doi_score": 1.0
+      "doi_score": 1.0,
+      "dl_status": "failed",
+      "dl_error": "paper_at_home did not produce a PDF file"
     },
     {
       "title": "Shortwave infrared photothermal microscopy for millimeter-deep micron-resolution vibrational imaging",
@@ -198,7 +237,9 @@
       "doi": "10.1117/12.3001775",
       "type": "journal",
       "doi_status": "matched",
-      "doi_score": 1.0
+      "doi_score": 1.0,
+      "dl_status": "conference",
+      "dl_error": "SPIE conference proceeding, filtered out"
     },
     {
       "title": "Single pulse stimulated Raman photothermal (spSRP) microscopy using an OPA",
@@ -210,7 +251,9 @@
       "doi": "10.1117/12.3001791",
       "type": "journal",
       "doi_status": "matched",
-      "doi_score": 1.0
+      "doi_score": 1.0,
+      "dl_status": "conference",
+      "dl_error": "SPIE conference proceeding, filtered out"
     },
     {
       "title": "Vibrational photothermal imaging: theory, instrumentation, and applications",
@@ -222,7 +265,10 @@
       "doi": "10.1364/optica.564920",
       "type": "journal",
       "doi_status": "matched",
-      "doi_score": 1.0
+      "doi_score": 1.0,
+      "zotero_key": "J4WFZG3A",
+      "attachment_key": "2UHP9RCN",
+      "dl_status": "success"
     },
     {
       "title": "Spatial-offset pump-probe imaging of nonradiative dynamics at optical resolution",
@@ -234,7 +280,10 @@
       "doi": "10.1126/sciadv.adw4939",
       "type": "journal",
       "doi_status": "matched",
-      "doi_score": 1.0
+      "doi_score": 1.0,
+      "zotero_key": "NUSWQPUV",
+      "attachment_key": "P59N2NXF",
+      "dl_status": "success"
     },
     {
       "title": "Fiber laser based stimulated Raman photothermal microscopy towards a high-performance and user-friendly chemical imaging platform",
@@ -246,7 +295,10 @@
       "doi": "10.1186/s43074-025-00196-1",
       "type": "journal",
       "doi_status": "matched",
-      "doi_score": 1.0
+      "doi_score": 1.0,
+      "zotero_key": "7U98HIGU",
+      "attachment_key": "7RAAJAJ4",
+      "dl_status": "success"
     },
     {
       "title": "Fiber laser based stimulated Raman photothermal microscopy with long working distance optics",
@@ -258,7 +310,8 @@
       "doi": "",
       "type": "journal",
       "doi_status": "low_score",
-      "doi_score": 0.648
+      "doi_score": 0.648,
+      "dl_status": "no_doi"
     },
     {
       "title": "Single-pulse Stimulated Raman Photothermal Microscopy and Direct Visualization of Cholesterol-rich Membrane Domains",
@@ -270,7 +323,8 @@
       "doi": "",
       "type": "journal",
       "doi_status": "low_score",
-      "doi_score": 0.627
+      "doi_score": 0.627,
+      "dl_status": "no_doi"
     },
     {
       "title": "Label-free Imaging of Single-Biomolecule Structure and Interaction by Stimulated Raman Photothermal Encoded Scattering",
@@ -282,7 +336,8 @@
       "doi": "",
       "type": "journal",
       "doi_status": "low_score",
-      "doi_score": 0.468
+      "doi_score": 0.468,
+      "dl_status": "no_doi"
     },
     {
       "title": "Micromolar chemical imaging by high-energy low-photodamage Coherent Anti-stokes Raman Scattering (HELP-CARS)",
@@ -294,7 +349,8 @@
       "doi": "",
       "type": "journal",
       "doi_status": "low_score",
-      "doi_score": 0.503
+      "doi_score": 0.503,
+      "dl_status": "no_doi"
     }
   ]
 }

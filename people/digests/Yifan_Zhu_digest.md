@@ -105,36 +105,36 @@ _（暂未发现明确综述论文，检查后补充）_
 
 | # | 年份 | 标题 | Venue | Citations | DOI | 状态 |
 |---|------|------|-------|-----------|-----|------|
-| 1 | 2016 | Contrasted photochromic and luminescent  | Chemical Communications | 25 | 10.1039/c6cc03431d |  |
-| 2 | 2018 | Rhodol Derivatives as Selective Fluoresc | ChemistryOpen | 18 | 10.1002/open.201800008 |  |
-| 3 | 2019 | Synthesis and study of Au (iii)–indolizi | Chemical Communications | 5 | 10.1039/c8cc10177a |  |
-| 4 | 2020 | Transient absorption microscopy: Technol | The Journal of Chemical P | 96 | 10.1063/1.5129123 |  |
-| 5 | 2020 | Polymer electrochromism driven by metabo | Advanced Functional Mater | 38 | 10.1002/adfm.202005192 |  |
-| 6 | 2021 | Neural stimulation in vitro and in vivo  | Matter | 78 | 10.1016/j.matt.2020.11.01 |  |
-| 7 | 2021 | Multiwindow SRS imaging using a rapid wi | Analytical Chemistry | 45 | 10.1021/acs.analchem.1c03 |  |
-| 8 | 2021 | The switchable phosphorescence and delay | Chemical Science | 20 | 10.1039/d1sc02787e |  |
-| 9 | 2022 | Photoinactivation of catalase sensitizes | JCI Insight | 39 | 10.1172/jci.insight.15307 |  |
-| 10 | 2022 | Structure-property relationships of phot | Communications Chemistry | 1 | 10.1038/s42004-022-00775- |  |
-| 11 | 2023 | Stimulated Raman photothermal microscopy | Science Advances | 79 | 10.1126/sciadv.adi2181 |  |
-| 12 | 2023 | Photothermally Detected Stimulated Raman |  | 0 | 10.1101/2023.03.06.531387 |  |
-| 13 | 2024 | Millimetre-deep micrometre-resolution vi | Nature Photonics | 40 | 10.1038/s41566-024-01463- |  |
-| 14 | 2024 | Overtone photothermal microscopy for hig | Nature Communications | 20 | 10.1038/s41467-024-49691- |  |
-| 15 | 2024 | The Parkinson’s disease drug entacapone  | Nature Microbiology | 15 | 10.1038/s41564-024-01853- |  |
-| 16 | 2024 | Shortwave infrared photothermal microsco | Advanced Chemical Microsc | 0 | 10.1117/12.3001775 |  |
-| 17 | 2024 | Single pulse stimulated Raman phototherm | Advanced Chemical Microsc | 0 | 10.1117/12.3001791 |  |
-| 18 | 2025 | Vibrational photothermal imaging: theory | Optica | 8 | 10.1364/optica.564920 |  |
-| 19 | 2025 | Spatial-offset pump-probe imaging of non | Science Advances | 3 | 10.1126/sciadv.adw4939 |  |
-| 20 | 2025 | Fiber laser based stimulated Raman photo | PhotoniX | 2 | 10.1186/s43074-025-00196- |  |
-| 21 | 2025 | Fiber laser based stimulated Raman photo | arXiv preprint arXiv:2504 | 2 |  |  |
-| 22 | 2026 | Single-pulse Stimulated Raman Phototherm | arXiv preprint arXiv:2603 | 1 |  |  |
-| 23 | 2026 | Label-free Imaging of Single-Biomolecule | arXiv preprint arXiv:2603 | 0 |  |  |
-| 24 | 2026 | Micromolar chemical imaging by high-ener | arXiv preprint arXiv:2602 | 0 |  |  |
+| 1 | 2016 | Contrasted photochromic and luminescent  | Chemical Communications | 25 | 10.1039/c6cc03431d | success |
+| 2 | 2018 | Rhodol Derivatives as Selective Fluoresc | ChemistryOpen | 18 | 10.1002/open.201800008 | success |
+| 3 | 2019 | Synthesis and study of Au (iii)–indolizi | Chemical Communications | 5 | 10.1039/c8cc10177a | success |
+| 4 | 2020 | Transient absorption microscopy: Technol | The Journal of Chemical P | 96 | 10.1063/1.5129123 | success |
+| 5 | 2020 | Polymer electrochromism driven by metabo | Advanced Functional Mater | 38 | 10.1002/adfm.202005192 | success |
+| 6 | 2021 | Neural stimulation in vitro and in vivo  | Matter | 78 | 10.1016/j.matt.2020.11.01 | failed |
+| 7 | 2021 | Multiwindow SRS imaging using a rapid wi | Analytical Chemistry | 45 | 10.1021/acs.analchem.1c03 | success |
+| 8 | 2021 | The switchable phosphorescence and delay | Chemical Science | 20 | 10.1039/d1sc02787e | success |
+| 9 | 2022 | Photoinactivation of catalase sensitizes | JCI Insight | 39 | 10.1172/jci.insight.15307 | failed |
+| 10 | 2022 | Structure-property relationships of phot | Communications Chemistry | 1 | 10.1038/s42004-022-00775- | failed |
+| 11 | 2023 | Stimulated Raman photothermal microscopy | Science Advances | 79 | 10.1126/sciadv.adi2181 | success |
+| 12 | 2023 | Photothermally Detected Stimulated Raman |  | 0 | 10.1101/2023.03.06.531387 | failed |
+| 13 | 2024 | Millimetre-deep micrometre-resolution vi | Nature Photonics | 40 | 10.1038/s41566-024-01463- | success |
+| 14 | 2024 | Overtone photothermal microscopy for hig | Nature Communications | 20 | 10.1038/s41467-024-49691- | success |
+| 15 | 2024 | The Parkinson’s disease drug entacapone  | Nature Microbiology | 15 | 10.1038/s41564-024-01853- | failed |
+| 16 | 2024 | Shortwave infrared photothermal microsco | Advanced Chemical Microsc | 0 | 10.1117/12.3001775 | failed |
+| 17 | 2024 | Single pulse stimulated Raman phototherm | Advanced Chemical Microsc | 0 | 10.1117/12.3001791 | failed |
+| 18 | 2025 | Vibrational photothermal imaging: theory | Optica | 8 | 10.1364/optica.564920 | success |
+| 19 | 2025 | Spatial-offset pump-probe imaging of non | Science Advances | 3 | 10.1126/sciadv.adw4939 | success |
+| 20 | 2025 | Fiber laser based stimulated Raman photo | PhotoniX | 2 | 10.1186/s43074-025-00196- | success |
+| 21 | 2025 | Fiber laser based stimulated Raman photo | arXiv preprint arXiv:2504 | 2 |  | no_doi |
+| 22 | 2026 | Single-pulse Stimulated Raman Phototherm | arXiv preprint arXiv:2603 | 1 |  | no_doi |
+| 23 | 2026 | Label-free Imaging of Single-Biomolecule | arXiv preprint arXiv:2603 | 0 |  | no_doi |
+| 24 | 2026 | Micromolar chemical imaging by high-ener | arXiv preprint arXiv:2602 | 0 |  | no_doi |
 
 ### B. 下载状态
 
 | 状态 | 数量 |
 |------|------|
-| 已下载 | 0 |
-| 下载失败 | 0 |
-| 无 DOI | 0 |
-| 待下载 | 24 |
+| 已下载 | 13 |
+| 下载失败 | 7 |
+| 无 DOI | 4 |
+| 待下载 | 0 |
