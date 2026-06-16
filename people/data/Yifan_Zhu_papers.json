@@ -135,8 +135,8 @@
       "type": "journal",
       "doi_status": "matched",
       "doi_score": 1.0,
-      "dl_status": "failed",
-      "dl_error": "paper_at_home did not produce a PDF file"
+      "dl_status": "success",
+      "dl_error": null
     },
     {
       "title": "Structure-property relationships of photofunctional diiridium (II) complexes with tetracationic charge and an unsupported Ir–Ir bond",

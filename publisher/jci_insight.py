@@ -57,7 +57,9 @@ class JCIInsightAdapter(PublisherAdapter):
                 return el ? el.content : null;
             }""")
             if pdf_url:
+                # Fix: JCI returns http:// but the site runs on https://
                 absolute = urljoin(page.url, pdf_url)
+                absolute = absolute.replace("http://", "https://")
                 logger.info(f"Found PDF via citation_pdf_url: {absolute[:80]}")
                 return absolute
         except Exception:
