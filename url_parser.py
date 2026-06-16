@@ -149,8 +149,12 @@ def resolve_doi(doi: str, timeout: int = 15) -> Optional[str]:
     logger.info(f"Resolving DOI: {doi}...")
 
     try:
-        response = requests.head(url, allow_redirects=True, timeout=timeout)
+        # Use GET instead of HEAD — some publishers (RSC) abort HEAD requests
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+        response = requests.get(url, allow_redirects=True, timeout=timeout, stream=True,
+                                headers=headers)
         resolved = response.url
+        response.close()  # Don't download body
         logger.info(f"DOI resolved to: {resolved}")
         return resolved
     except Exception as e:

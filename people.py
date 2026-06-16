@@ -710,17 +710,31 @@ def download_one_paper(paper: dict, cfg: dict, collection_key: str) -> dict:
         console.print("    [yellow]⊘ No DOI, skipping download[/yellow]")
         return paper
     
-    # Build DOI URL for zot.py
+    # Build DOI for zot.py
+    # First resolve DOI to publisher URL (avoids "Unknown publisher" when passing raw DOI
+    # or doi.org URL, since parse_input doesn't resolve https://doi.org/... URLs)
     doi_url = f"https://doi.org/{doi}"
+    
+    try:
+        from url_parser import resolve_doi
+        resolved = resolve_doi(doi)
+        if resolved:
+            console.print(f"    [dim]DOI resolved → {resolved[:60]}[/dim]")
+            download_url = resolved
+        else:
+            download_url = doi_url  # fallback, may fail
+    except Exception as e:
+        console.print(f"    [yellow]DOI resolve failed ({e}), trying raw URL[/yellow]")
+        download_url = doi_url
     
     try:
         # Use zot.py's functions directly
         sys.path.insert(0, str(Path(__file__).parent))
         import zot
         
-        # Step 1: Download PDF
+        # Step 1: Download PDF (pass resolved publisher URL)
         console.print("    [dim]Downloading PDF...[/dim]")
-        pdf_path = zot.download_pdf(doi_url, cfg)
+        pdf_path = zot.download_pdf(download_url, cfg)
         
         # Step 2: Create Zotero item with metadata from CrossRef
         meta = {
@@ -730,10 +744,11 @@ def download_one_paper(paper: dict, cfg: dict, collection_key: str) -> dict:
             "journal": paper.get("venue", ""),
             "year": str(paper.get("year", "")),
         }
-        # Parse authors from "Y Zhu, JX Cheng" format
+        # Parse authors from "Y Zhu, JX Cheng" format, filter out truncation artifacts
         author_str = paper.get("authors", "")
         if author_str:
-            meta["authors"] = [a.strip() for a in author_str.split(",")]
+            raw = [a.strip() for a in author_str.split(",")]
+            meta["authors"] = [a for a in raw if a and a != "..." and len(a) > 1]
         
         item_key = zot.add_to_zotero(meta, cfg)
         paper["zotero_key"] = item_key

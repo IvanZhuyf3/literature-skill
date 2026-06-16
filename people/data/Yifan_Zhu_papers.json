@@ -2,7 +2,7 @@
   "scholar_name": "Yifan Zhu",
   "scholar_id": "tSWxyLwAAAAJ",
   "scholar_url": "https://scholar.google.com/citations?user=tSWxyLwAAAAJ&hl=en",
-  "scraped_at": "2026-06-15 19:58:48",
+  "scraped_at": "2026-06-15 21:31:03",
   "paper_count": 24,
   "papers": [
     {
@@ -15,7 +15,10 @@
       "doi": "10.1039/c6cc03431d",
       "type": "journal",
       "doi_status": "matched",
-      "doi_score": 0.973
+      "doi_score": 0.973,
+      "zotero_key": "HTK532AW",
+      "attachment_key": "VRBDQH87",
+      "dl_status": "success"
     },
     {
       "title": "Rhodol Derivatives as Selective Fluorescent Probes for the Detection of HgII Ions and the Bioimaging of Hypochlorous Acid",
