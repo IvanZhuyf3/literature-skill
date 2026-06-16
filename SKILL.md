@@ -24,12 +24,13 @@ allowed-tools: Bash(uv:*), Bash(python:*), Bash(node:*)
   - `-pdf` → 文件搜索查找已下载的 PDF
 - **Chromium 启动**：推荐手动启动（有机构登录状态，`--remote-debugging-port=19222`）。main.py 的 fallback `launch_browser()` 使用独立临时 profile，**无机构登录状态**。
 - Elsevier 论文额外依赖 Foxit Reader（Print to PDF 虚拟打印机）。
-- Python 依赖：`playwright`, `pyautogui`, `requests`, `pyyaml`, `rich`, `pyzotero`。首次使用运行 `<skill-base>/setup.bat`。
+- Python 依赖：`playwright`, `pyautogui`, `requests`, `pyyaml`, `rich`, `pyzotero`。首次使用运行 `<skill-base>/setup.bat`。PDF 解析额外依赖 MinerU API（`config.yaml` 配置 token，无需额外安装）。
 - 所有命令设置 `PYTHONIOENCODING=utf-8` 避免 Windows GBK 编码问题。
 - 支持的出版商由 `<skill-base>/url_parser.py` 的 `PUBLISHER_PATTERNS` 自动匹配。
 - 下载失败时，先查 `<skill-base>/error_log.md` 该出版商的条目，再用 `--debug` 重跑。深度调试读 `<skill-base>/references/architecture.md`。
 - **OCR DOI 和 CrossRef 匹配都不可全信**。检查 `crossref_score`：<30 时匹配不可信，需用 OCR 原文手动搜索正确 DOI。两个 DOI 冲突时，分别查 CrossRef，以标题+作者+期刊三方匹配为准。
 - 图片引用提取走 `ocr_citation.py`（依赖 DeepSeek Vision API `http://127.0.0.1:3000`）。
+- PDF 结构化解析走 `pdf_parser.py`（依赖 MinerU online API，需 `config.yaml` 的 `mineru.token`）。
 
 # 工作流程
 
@@ -47,6 +48,7 @@ allowed-tools: Bash(uv:*), Bash(python:*), Bash(node:*)
 | 图片提取引用 | `ocr_citation.py` | Step 5 |
 | `-qr`、二维码 | `generate_qr.py` | Step 6 |
 | `-pdf`、找 PDF | 文件搜索 | Step 7 |
+| `-parse`、解析 PDF | `pdf_parser.py` | Step 9 |
 
 ## Step 2a：执行下载
 
@@ -136,6 +138,28 @@ Phase 4 生成模板后，由 agent 手动填充。详细方法论见 `reference
 - 解析优先级：CrossRef 查询 → 本地 `authors_db.json` → dirty 保留缩写
 - 4 Block 非线性填充，用三圈螺旋工作流（鸟瞰→深读→整合）
 - 跨 Block 关联打 ⚡ 标记，统一时间线
+
+## Step 9：PDF 结构化解析（`-parse`）
+
+**前提**：`config.yaml` 的 `mineru.token` 已填入（从 https://mineru.net/apiManage 获取）。
+
+```bash
+# 单篇解析 → stdout
+set PYTHONIOENCODING=utf-8 && python "<skill-base>/pdf_parser.py" "<pdf_path>"
+
+# 指定输出文件
+python "<skill-base>/pdf_parser.py" "<pdf_path>" -o "<output.md>"
+
+# 批量解析（模块调用）
+# from pdf_parser import parse_pdf_batch
+# results = parse_pdf_batch(["paper1.pdf", "paper2.pdf"])
+```
+
+输出：高质量 Markdown，保留表格结构、公式、阅读顺序、图表标注。结果按文件 SHA256 缓存在 `<skill-base>/cache/mineru/`，重复解析同文件直接返回缓存。
+
+**用途**：digest 工作流的"深读"阶段——用解析后的 Markdown 替代人眼读 PDF，提取 methods/results 细节。不用于 abstract/元数据提取（那是 CrossRef + 页面 DOM 的任务）。
+
+**API 配额**：免费 5000 页/天，单文件 ≤200 页/200MB。VLM 模型精度最高，pipeline 模型更快。
 
 # 支持的出版商（25 家）
 
