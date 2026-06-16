@@ -2,12 +2,13 @@
 Elsevier (ScienceDirect) 适配器。
 
 URL 模式: https://www.sciencedirect.com/science/article/pii/...
-下载流程: 论文页 -> 点击 View PDF -> 新 tab 打开 Chrome PDF 查看器
-         -> pyautogui 点击查看器下载按钮 -> 监控下载目录
+下载流程（优先级）:
+  1. Extended PDF (CDN 直链): ars.els-cdn.com/.../mmc3.pdf — article + supplemental
+  2. Standard PDF (CDN 直链): ars.els-cdn.com/.../main.pdf
+  3. Ctrl+P 回退: pdfft URL → Chrome PDF 查看器 → pyautogui 打印
 
-Elsevier 的 /pdfft URL 被 Chrome 内置 PDF 查看器劫持，所有 Playwright
-事件（response、request）都被抑制。无法通过 fetch() 或网络拦截获取 S3 URL。
-改用物理点击方式：在新 tab 的 PDF 查看器中点击下载按钮。
+CDN 直链是首选方式，通过 browser_download() 的 fetch() 下载，
+无需 Foxit Reader 或 pyautogui，速度更快更可靠。
 """
 
 import logging
@@ -15,6 +16,7 @@ import os
 import re
 import time
 from typing import Optional, Any
+from urllib.parse import urljoin
 
 import pyautogui
 
@@ -26,11 +28,11 @@ logger = logging.getLogger(__name__)
 class ElsevierAdapter(PublisherAdapter):
     """Elsevier ScienceDirect 适配器。
 
-    View PDF 打开新 tab（Chrome PDF 查看器），用 pyautogui 点击
-    查看器工具栏的下载按钮，监控下载目录等待文件落盘。
+    优先使用 CDN 直链下载（Extended PDF > Standard PDF）。
+    仅当 CDN 直链不可用时回退到 Ctrl+P + pyautogui 打印方式。
     """
 
-    # 标记：不走 fetch() 流程，用点击下载
+    # Ctrl+P 回退标记
     use_click_download = True
     fetch_from_pdf_page = False
 
@@ -59,34 +61,87 @@ class ElsevierAdapter(PublisherAdapter):
             logger.error(f"Failed to load Elsevier page: {e}")
             return False
 
-    def find_download_element(self, page) -> Optional[Any]:
+    def find_download_url(self, page) -> str | None:
         """
-        定位 PDF 链接。
+        提取 PDF 下载 URL（优先 CDN 直链，回退 pdfft）。
 
-        Elsevier 的 "View PDF" 按钮链接到 /pdfft?md5=...&pid=...
-        需要匹配当前文章的 PII，排除推荐文献中的链接。
+        优先级：
+        1. Extended PDF: ars.els-cdn.com/.../mmc3.pdf
+           ScienceDirect 页面有 "Document S2. Article plus Supplemental Information"
+           下载链接。这是 article+supplemental 合并版。
+        2. Standard PDF: ars.els-cdn.com/.../main.pdf
+        3. pdfft URL: 回退到 Ctrl+P 流程（resolve_pdf_url 处理）
         """
         pii_match = re.search(r'/pii/([^/?#]+)', page.url)
         current_pii = pii_match.group(1) if pii_match else ""
 
-        # 查找所有 View PDF 链接，取匹配当前 PII 的
+        # 1. 查找 Extended PDF (CDN 直链)
+        try:
+            elements = page.query_selector_all('a[href*="ars.els-cdn.com"]')
+            for el in elements:
+                href = el.get_attribute("href") or ""
+                text = (el.inner_text() or "").strip()
+                if current_pii and href.endswith(".pdf"):
+                    # Extended PDF: mmc3 或 "Article plus Supplemental Information"
+                    if "mmc3" in href or "Article plus Supplemental" in text:
+                        logger.info(f"Found extended PDF (CDN): {href[:100]}")
+                        return href
+            # 2. Standard PDF via CDN (main.pdf)
+            if current_pii:
+                for el in elements:
+                    href = el.get_attribute("href") or ""
+                    if "main.pdf" in href and current_pii in href:
+                        logger.info(f"Found standard PDF (CDN): {href[:100]}")
+                        return href
+        except Exception as e:
+            logger.debug(f"CDN link search failed: {e}")
+
+        # 3. 回退：pdfft URL (Ctrl+P 流程)
         try:
             elements = page.query_selector_all('a[aria-label*="PDF"]')
             for el in elements:
                 href = el.get_attribute("href") or ""
                 if current_pii and current_pii in href and "/pdfft" in href:
-                    logger.info(f"Found download element: href={href[:80]}...")
-                    return el
+                    absolute = urljoin(page.url, href)
+                    logger.info(f"Fallback to pdfft URL (Ctrl+P): {absolute[:80]}...")
+                    return absolute
         except Exception as e:
-            logger.debug(f"aria-label search failed: {e}")
+            logger.debug(f"pdfft search failed: {e}")
 
-        # Fallback: text matching
+        # 4. 文本兜底
         try:
             elements = page.query_selector_all('a:has-text("View PDF")')
             for el in elements:
                 href = el.get_attribute("href") or ""
                 if current_pii and current_pii in href:
-                    logger.info(f"Found download via text match: {href[:80]}...")
+                    absolute = urljoin(page.url, href)
+                    logger.info(f"Found via text match: {absolute[:80]}...")
+                    return absolute
+        except Exception as e:
+            logger.debug(f"Text match failed: {e}")
+
+        logger.error("Could not find any download URL on Elsevier page")
+        return None
+
+    def find_download_element(self, page) -> Optional[Any]:
+        """仅用于 check_access，实际下载走 find_download_url。"""
+        pii_match = re.search(r'/pii/([^/?#]+)', page.url)
+        current_pii = pii_match.group(1) if pii_match else ""
+
+        try:
+            elements = page.query_selector_all('a[aria-label*="PDF"]')
+            for el in elements:
+                href = el.get_attribute("href") or ""
+                if current_pii and current_pii in href and "/pdfft" in href:
+                    return el
+        except Exception as e:
+            logger.debug(f"aria-label search failed: {e}")
+
+        try:
+            elements = page.query_selector_all('a:has-text("View PDF")')
+            for el in elements:
+                href = el.get_attribute("href") or ""
+                if current_pii and current_pii in href:
                     return el
         except Exception as e:
             logger.debug(f"Text match failed: {e}")
@@ -95,7 +150,8 @@ class ElsevierAdapter(PublisherAdapter):
         return None
 
     def check_access(self, page) -> bool:
-        """用 PDF 链接存在性判断权限。"""
+        """用 PDF 链接或 CDN 链接存在性判断权限。"""
+        # 检查 View PDF 链接
         try:
             pii_match = re.search(r'/pii/([^/?#]+)', page.url)
             current_pii = pii_match.group(1) if pii_match else ""
@@ -106,28 +162,84 @@ class ElsevierAdapter(PublisherAdapter):
                     return True
         except Exception:
             pass
+        # 也检查 CDN 链接
+        try:
+            elements = page.query_selector_all('a[href*="ars.els-cdn.com"]')
+            for el in elements:
+                href = el.get_attribute("href") or ""
+                if current_pii and href.endswith(".pdf"):
+                    return True
+        except Exception:
+            pass
         logger.warning("No PDF link found - likely no access")
         return False
 
     def resolve_pdf_url(self, page, initial_pdf_url: str) -> Optional[str]:
         """
-        点击 View PDF 打开新 tab，在新 tab 上用 pyautogui 点下载按钮。
+        解析 PDF URL。
 
-        Chrome PDF 查看器会接管 /pdfft 的导航。window.open 打开的 tab 
-        Playwright CDP 看不到（不触发 ctx.on("page")，不在 ctx.pages 里）。
-        
-        策略：用 Playwright click 点击 View PDF 链接，用
-        page.expect_popup() 捕获新 tab。如果 popup 没触发，
-        就直接在当前 page 导航到 /pdfft（Chrome PDF 查看器接管），
-        然后用 pyautogui 点下载。
+        如果 find_download_url 返回了 CDN 直链（ars.els-cdn.com），
+        直接返回该 URL，main.py 的 browser_download() 会用 fetch() 下载。
+        无需 Ctrl+P。
 
-        返回特殊标记 "__click_download__" 通知 main.py 不走 fetch() 流程。
+        如果返回的是 pdfft URL，回退到 Ctrl+P + pyautogui 方式。
         """
+        # CDN 直链：直接返回，走 browser_download
+        if initial_pdf_url and "ars.els-cdn.com" in initial_pdf_url:
+            logger.info(f"CDN direct download, skipping Ctrl+P: {initial_pdf_url[:100]}")
+            return initial_pdf_url
+
+        # pdfft URL：回退到 Ctrl+P 流程
+        logger.info("Using Ctrl+P fallback for pdfft URL...")
+        return self._ctrl_p_download(page, initial_pdf_url)
+
+    def fallback_download(self, page, monitor, failed_cdn_url: str):
+        """
+        CDN fetch 失败时的自动回退（backup 版本）。
+        
+        由 main.py 在 browser_download() 返回 None 后调用。
+        切换到 Ctrl+P + pyautogui 流程下载。
+        
+        适用于：
+        - CDN 直链需要特殊 cookie/referrer 但 fetch 拿不到
+        - 某些 Elsevier 期刊页面结构不同，CDN 链接不匹配
+        - CDN 临时不可用
+        """
+        logger.warning(f"CDN download failed ({failed_cdn_url[:80]}...), falling back to Ctrl+P")
+        
+        # 从 CDN URL 提取 pdfft URL
+        pii_match = re.search(r'1-s2\.0-([^-]+)', failed_cdn_url)
+        if not pii_match:
+            # 从当前页面 URL 提取 PII
+            pii_match = re.search(r'/pii/([^/?#]+)', page.url)
+        
+        if not pii_match:
+            logger.error("Cannot determine PII for Ctrl+P fallback")
+            return None
+            
+        # 确保页面在文章页（不是 PDF 查看器）
+        if "/pdfft" in page.url or "ars.els-cdn.com" in page.url:
+            # 导航回文章页
+            pii = pii_match.group(1)
+            article_url = f"https://www.sciencedirect.com/science/article/pii/{pii}"
+            logger.info(f"Navigating back to article page: {article_url[:80]}...")
+            self.navigate_to_paper(page, article_url)
+        
+        # 构造 pdfft URL 并走 Ctrl+P
+        pii = pii_match.group(1)
+        pdfft_url = f"{page.url.split('/pii/')[0]}/pii/{pii}/pdfft?isDTMRedir=true&download=true"
+        logger.info(f"Trying Ctrl+P with pdfft URL: {pdfft_url[:80]}...")
+        
+        result = self._ctrl_p_download(page, pdfft_url)
+        if result == "__click_download__":
+            return self.click_download(monitor)
+        return None
+
+    def _ctrl_p_download(self, page, initial_pdf_url: str) -> str:
+        """Ctrl+P 回退下载流程（原有逻辑）。"""
         logger.info("Opening View PDF in new tab...")
         ctx = page.context
-        logger.debug(f"  Pages before ({len(ctx.pages)}): {[p.url[:60] for p in ctx.pages]}")
 
-        # 找到 View PDF 链接元素
         pii_match = re.search(r'/pii/([^/?#]+)', page.url)
         current_pii = pii_match.group(1) if pii_match else ""
 
@@ -165,31 +277,26 @@ class ElsevierAdapter(PublisherAdapter):
             except Exception as e:
                 logger.debug(f"  expect_popup failed: {e}")
 
-        # 方法2: 如果 popup 没成功，用中间页导航
+        # 方法2: 直接导航到 pdfft
         if not new_page:
             logger.info("  Popup not captured, trying navigation approach...")
-            # 不用 window.open，直接 page.goto 到 /pdfft
-            # Chrome PDF 查看器会接管这个页面
             try:
                 page.goto(initial_pdf_url, timeout=60000)
             except Exception as e:
                 logger.debug(f"  Navigation to /pdfft: {e}")
-            # 此时 page 已经在 PDF 查看器中
             new_page = page
-            # 标记：不要关闭这个 page（它就是原来的 page）
             self._reuse_original_page = True
 
         # 等待 PDF 加载
         time.sleep(5)
 
-        # 把 tab 带到前台
         try:
             new_page.bring_to_front()
         except Exception as e:
             logger.debug(f"  bring_to_front: {e}")
         time.sleep(1)
 
-        # 在文章页获取窗口信息（PDF 查看器页面 evaluate 可能失败）
+        # 在文章页获取窗口信息
         window_info = None
         try:
             window_info = page.evaluate("""() => ({
@@ -198,33 +305,24 @@ class ElsevierAdapter(PublisherAdapter):
                 outerWidth: window.outerWidth,
                 outerHeight: window.outerHeight,
             })""")
-            logger.debug(f"  Window: ({window_info['screenX']},{window_info['screenY']}) "
-                        f"{window_info['outerWidth']}x{window_info['outerHeight']}")
         except Exception as e:
             logger.warning(f"  Could not get window info: {e}")
 
-        # 记录 Ctrl+P 之前的时间，供 click_download 按创建时间查找文件
         self._print_start_time = time.time()
+        self._click_pdf_download_button(new_page, window_info, monitor)
 
-        # 用 pyautogui 点击 Chrome PDF 查看器的下载按钮
-        self._click_pdf_download_button(new_page, window_info)
-
-        # 保存引用
         self._pdf_tab = new_page if not getattr(self, '_reuse_original_page', False) else None
         self._article_page = page
 
         return "__click_download__"
 
-    def _click_pdf_download_button(self, pdf_page, window_info: dict | None = None) -> None:
-        """
-        在 Chrome PDF 查看器中用 Ctrl+P 打印为 PDF。
-        
-        关键：pyautogui 是 OS 级别的，快捷键发给当前 focus 的窗口。
-        必须先确保 Chrome 窗口在前台，再发送 Ctrl+P。
-        """
-        # 通过 CDP 设置下载路径到 temp_dir
+    def _click_pdf_download_button(self, pdf_page, window_info: dict | None = None, monitor=None) -> None:
+        """在 Chrome PDF 查看器中用 Ctrl+P 打印为 PDF。"""
+        if monitor:
+            temp_dir = monitor.get_temp_dir()
+        else:
+            temp_dir = os.path.expandvars(r"C:\Users\Ivanz\Downloads\temp")
         try:
-            temp_dir = os.path.expandvars(r"C:\Users\IvanZhuyf\Downloads\temp")
             cdp = pdf_page.context.new_cdp_session(pdf_page)
             cdp.send("Browser.setDownloadBehavior", {
                 "behavior": "allowAndName",
@@ -235,15 +333,12 @@ class ElsevierAdapter(PublisherAdapter):
         except Exception as e:
             logger.debug(f"  CDP set download behavior: {e}")
 
-        # 确保 Chrome 窗口在前台
         if window_info:
-            # 点击窗口标题栏中间位置（激活窗口）
             title_x = window_info["screenX"] + window_info["outerWidth"] // 2
             title_y = window_info["screenY"] + 5
             pyautogui.click(title_x, title_y)
             logger.info(f"  Clicked Chrome title bar at ({title_x}, {title_y}) to focus")
             time.sleep(1)
-            # 再点击内容区域确认激活
             content_x = window_info["screenX"] + window_info["outerWidth"] // 2
             content_y = window_info["screenY"] + window_info["outerHeight"] // 2
             pyautogui.click(content_x, content_y)
@@ -256,64 +351,49 @@ class ElsevierAdapter(PublisherAdapter):
                 pass
             time.sleep(1)
 
-        # 现在发送 Ctrl+P 打开打印对话框
         pyautogui.hotkey('ctrl', 'p')
         logger.info("  Sent Ctrl+P (print)")
 
-        # 第一次确认：打印对话框（等 3s 让它加载）
         time.sleep(3)
         pyautogui.press('enter')
         logger.info("  Pressed Enter (confirm print dialog)")
 
-        # 第二次确认：另存为对话框（等 10s 让它加载）
         time.sleep(10)
         pyautogui.press('enter')
         logger.info("  Pressed Enter (confirm save dialog)")
         time.sleep(2)
 
     def click_download(self, monitor) -> Optional[str]:
-        """
-        Ctrl+P 打印已发起，等文件落盘后找到它。
-        
-        策略：记录 Ctrl+P 之前的时间戳，在 temp 目录找比该时间戳更新的 PDF。
-        不依赖文件名匹配（文件名可能被截断或叫 main.pdf）。
-        """
+        """等待 Ctrl+P 打印的 PDF 落盘。"""
         import glob as glob_mod
         temp_dir = monitor.get_temp_dir()
         logger.info("Waiting for PDF print to complete...")
 
-        # 记录 Ctrl+P 发起时的时间（已在 resolve_pdf_url 中执行）
-        # 用 _print_start_time，如果没设就用当前时间
         start_time = getattr(self, '_print_start_time', time.time())
 
-        # 轮询等待新 PDF 出现（最多 120 秒）
         filepath = None
         for i in range(60):
             time.sleep(2)
-            # 找比 start_time 新的 PDF 文件
             candidates = []
             for f in glob_mod.glob(os.path.join(temp_dir, "*.pdf")):
                 try:
                     mtime = os.path.getmtime(f)
-                    if mtime >= start_time - 1:  # 1 秒容差
+                    if mtime >= start_time - 1:
                         size = os.path.getsize(f)
-                        if size > 10000:  # 至少 10KB，排除垃圾文件
+                        if size > 10000:
                             candidates.append((f, mtime, size))
                 except OSError:
                     continue
             if candidates:
-                # 取最新的（按修改时间排序）
                 candidates.sort(key=lambda x: x[1], reverse=True)
                 f, mtime, size = candidates[0]
-                # 等文件大小稳定（Foxit Reader 写完后大小不变）
                 time.sleep(3)
                 new_size = os.path.getsize(f)
-                if new_size == size and size > 100000:  # 大小不变且 >100KB
+                if new_size == size and size > 100000:
                     size_mb = size / 1024 / 1024
                     logger.info(f"Found new PDF: {os.path.basename(f)} ({size_mb:.1f} MB)")
                     filepath = f
                     break
-                # 否则继续等（文件还在写）
 
         # 清理：关闭 PDF 查看 tab
         if hasattr(self, '_pdf_tab') and self._pdf_tab:

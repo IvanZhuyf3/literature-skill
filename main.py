@@ -282,9 +282,14 @@ def download_paper(
     )
 
     if filepath is None:
-        result["error"] = "PDF download failed"
-        # debug_screenshot(page, config, "download_failed")
-        return result
+        # 适配器级 fallback（如 Elsevier CDN 失败 → Ctrl+P）
+        if hasattr(adapter, "fallback_download"):
+            log.info("Primary download failed, trying adapter fallback...")
+            filepath = adapter.fallback_download(page, monitor, pdf_url)
+        if filepath is None:
+            result["error"] = "PDF download failed"
+            # debug_screenshot(page, config, "download_failed")
+            return result
 
     # 14. 成功！
     result["success"] = True

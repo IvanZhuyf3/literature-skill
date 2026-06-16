@@ -25,7 +25,7 @@ class DownloadMonitor:
     def __init__(self, config: dict):
         dl_cfg = config.get("download", {})
         self.temp_dir = os.path.expandvars(
-            dl_cfg.get("temp_dir", r"C:\Users\IvanZhuyf\Downloads\temp")
+            dl_cfg.get("temp_dir", os.path.join(os.path.expanduser("~"), "Downloads", "temp"))
         )
         self.timeout = dl_cfg.get("timeout", 120)
 
