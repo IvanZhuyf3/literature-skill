@@ -1029,6 +1029,81 @@ def download_one_paper(paper: dict, cfg: dict, collection_key: str,
     return paper
 
 
+def register_to_zotero(papers: list[dict], cfg: dict, collection_key: str,
+                       save_callback=None) -> list[dict]:
+    """Register all DOI-matched papers as Zotero items (no PDF needed).
+    
+    Creates Zotero entries from CrossRef metadata only. Papers that already
+    have zotero_key are skipped. This decouples Zotero registration from
+    PDF downloading — the cron download phase only needs to attach PDFs later.
+    
+    Args:
+        save_callback: Optional callable(papers) to save progress periodically.
+    """
+    console.print(f"\n[bold cyan]━━━ Zotero 批量注册 ({len(papers)} 篇) ━━━[/bold cyan]\n")
+    
+    to_register = []
+    for p in papers:
+        if p.get("zotero_key"):
+            continue  # already registered
+        if not p.get("doi"):
+            p["zotero_status"] = "no_doi"
+            continue
+        to_register.append(p)
+    
+    if not to_register:
+        console.print("  [green]All papers already registered or no DOIs.[/green]")
+        return papers
+    
+    console.print(f"  To register: {len(to_register)} (skipped {len(papers) - len(to_register)})")
+    
+    import zot
+    sys.path.insert(0, str(Path(__file__).parent))
+    
+    for i, paper in enumerate(to_register):
+        title = paper.get("title", "")[:70]
+        doi = paper.get("doi", "")
+        console.print(f"\n  [{i+1}/{len(to_register)}] {title}")
+        
+        try:
+            meta = {
+                "DOI": doi,
+                "title": paper.get("title", ""),
+                "url": f"https://doi.org/{doi}",
+                "journal": paper.get("venue", ""),
+                "year": str(paper.get("year", "")),
+            }
+            author_str = paper.get("authors", "")
+            if author_str:
+                raw = [a.strip() for a in author_str.split(",")]
+                meta["authors"] = [a for a in raw if a and a != "..." and len(a) > 1]
+            
+            item_key = zot.add_to_zotero(meta, cfg)
+            paper["zotero_key"] = item_key
+            paper["zotero_status"] = "registered"
+            
+            _assign_to_collection(item_key, collection_key, cfg)
+            console.print(f"    [green]✓ {item_key}[/green]")
+            
+        except Exception as e:
+            paper["zotero_status"] = "failed"
+            paper["zotero_error"] = str(e)[:200]
+            console.print(f"    [red]✗ {str(e)[:80]}[/red]")
+        
+        # Save every 10 papers
+        if save_callback and (i + 1) % 10 == 0:
+            save_callback(papers)
+    
+    if save_callback:
+        save_callback(papers)
+    
+    registered = sum(1 for p in papers if p.get("zotero_key"))
+    failed = sum(1 for p in papers if p.get("zotero_status") == "failed")
+    console.print(f"\n  [bold green]Done: {registered} registered, {failed} failed[/bold green]")
+    
+    return papers
+
+
 def _assign_to_collection(item_key: str, collection_key: str, cfg: dict):
     """Add a Zotero item to a collection."""
     from pyzotero import zotero as zotero_mod
@@ -1358,10 +1433,12 @@ def main():
                         help="Override scholar name (for --download-only/--template-only)")
     parser.add_argument("--retry", action="store_true",
                         help="Retry failed papers: load existing json, retry failed downloads")
+    parser.add_argument("--register-only", action="store_true",
+                        help="Register all DOI-matched papers to Zotero (no PDF download)")
     
     args = parser.parse_args()
     
-    if not args.url and not (args.download_only or args.template_only or args.retry):
+    if not args.url and not (args.download_only or args.template_only or args.retry or args.register_only):
         console.print("Usage: [bold]python people.py <Scholar URL>[/bold]")
         console.print('  python people.py "https://scholar.google.com/citations?user=XXXX" --scrape-only')
         console.print('  python people.py "URL" --download          # scrape + DOI + download')
@@ -1371,8 +1448,8 @@ def main():
     
     cfg = load_config()
     
-    # ── Load existing data for download-only / template-only ──
-    if args.download_only or args.template_only:
+    # ── Load existing data for download-only / template-only / register-only ──
+    if args.download_only or args.template_only or args.register_only:
         sn = args.scholar_name or "Yifan Zhu"
         data = load_papers(sn)
         if not data:
@@ -1384,6 +1461,15 @@ def main():
         
         if args.template_only:
             generate_digest_template(papers, scholar_name, scholar_url, cfg)
+            return
+        
+        # register-only: batch create Zotero items from CrossRef metadata
+        if args.register_only:
+            collection_key = ensure_scholar_collection(scholar_name, cfg)
+            sname, sid = scholar_name, data.get("scholar_id", "")
+            papers = register_to_zotero(papers, cfg, collection_key,
+                                        save_callback=lambda p: save_papers(p, sname, sid))
+            save_papers(papers, sname, sid)
             return
         
         # download-only
