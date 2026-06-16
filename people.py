@@ -563,6 +563,255 @@ def title_similarity(t1: str, t2: str) -> float:
 
 
 # ---------------------------------------------------------------------------
+# Phase 1c: Author Database (corresponding authors only)
+# ---------------------------------------------------------------------------
+
+AUTHORS_DB_PATH = SKILL_BASE / "people" / "data" / "authors_db.json"
+
+
+def load_authors_db() -> dict:
+    """Load the persistent author database."""
+    if AUTHORS_DB_PATH.exists():
+        with open(AUTHORS_DB_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {"authors": {}}
+
+
+def save_authors_db(db: dict):
+    """Save the author database."""
+    AUTHORS_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(AUTHORS_DB_PATH, "w", encoding="utf-8") as f:
+        json.dump(db, f, ensure_ascii=False, indent=2)
+
+
+def _normalize_abbrev(name: str) -> str:
+    """Normalize an author name for matching (lowercase, strip dots/spaces/dashes)."""
+    # Replace all unicode dash variants with ASCII hyphen, then strip
+    name = name.replace("\u2010", "-").replace("\u2011", "-").replace("\u2012", "-")
+    name = name.replace("\u2013", "-").replace("\u2014", "-").replace("\u2212", "-")
+    return re.sub(r"[\.\s\-]+", "", name).lower()
+
+
+def fetch_crossref_authors(doi: str) -> list[dict] | None:
+    """Fetch full author list from CrossRef by DOI.
+
+    Returns list of {given, family, affiliations, sequence} or None on failure.
+    sequence is 'first' (first author) or 'additional'.
+    Corresponding author is identified by 'corresponding' in sequence or
+    by matching the last author (heuristic).
+    """
+    try:
+        r = requests.get(
+            f"https://api.crossref.org/works/{doi}",
+            headers={"User-Agent": "lit-skill/1.0 (mailto:noreply@example.com)"},
+            timeout=15,
+        )
+        if not r.ok:
+            return None
+        msg = r.json().get("message", {})
+        authors = []
+        for a in msg.get("author", []):
+            given = a.get("given", "")
+            family = a.get("family", "")
+            affils = [af.get("name", "") for af in a.get("affiliation", []) if af.get("name")]
+            seq = a.get("sequence", "")
+            # CrossRef sometimes marks corresponding author
+            if a.get("corresponding"):
+                seq = "corresponding"
+            authors.append({
+                "given": given,
+                "family": family,
+                "full_name": f"{given} {family}".strip(),
+                "affiliations": affils,
+                "sequence": seq,
+            })
+        return authors if authors else None
+    except Exception:
+        return None
+
+
+def _identify_corresponding(authors: list[dict], doi: str) -> list[dict]:
+    """Identify corresponding author(s) from a CrossRef author list.
+
+    Priority:
+    1. sequence == 'corresponding'
+    2. Last author (heuristic: senior/corresponding in many fields)
+    """
+    corr = [a for a in authors if a.get("sequence") == "corresponding"]
+    if corr:
+        return corr
+    # Heuristic: last author is corresponding in life sciences / chemistry
+    if authors:
+        return [authors[-1]]
+    return []
+
+
+def update_authors_from_doi(doi: str, db: dict) -> dict:
+    """Fetch CrossRef author data for a DOI and update the DB.
+
+    Only corresponding authors are stored. Returns the updated db.
+    """
+    authors = fetch_crossref_authors(doi)
+    if not authors:
+        return db
+
+    corresponding = _identify_corresponding(authors, doi)
+    all_names = [a["full_name"] for a in authors]
+
+    for ca in corresponding:
+        full = ca["full_name"]
+        if not full or len(full) < 3:
+            continue
+
+        # Generate abbreviation: initials + family
+        # Handle hyphenated names: "Man-Chung" → "MC" not "M"
+        parts = full.split()
+        if len(parts) >= 2:
+            given_parts = parts[:-1]
+            family = parts[-1]
+            # Split hyphenated given name parts for initials
+            initials = ""
+            for gp in given_parts:
+                for sub in re.split(r"[-‐–—]", gp):
+                    if sub and sub[0].isalpha():
+                        initials += sub[0]
+            abbrev = f"{initials} {family}"
+            # Also add variant with no dash expansion (e.g. "KM" for "Keith Man-Chung")
+            simple_initials = "".join(gp[0] for gp in given_parts if gp and gp[0].isalpha())
+            abbrevs = [abbrev]
+            if simple_initials != initials:
+                abbrevs.append(f"{simple_initials} {family}")
+        else:
+            abbrevs = [full]
+
+        key = _normalize_abbrev(full)
+
+        if key not in db["authors"]:
+            db["authors"][key] = {
+                "full_name": full,
+                "abbreviations": list(abbrevs),
+                "affiliations": ca.get("affiliations", []),
+                "papers_as_corresponding": [],
+                "papers_as_coauthor": [],
+                "dirty": False,
+                "last_updated": time.strftime("%Y-%m-%d"),
+            }
+        else:
+            entry = db["authors"][key]
+            for ab in abbrevs:
+                if ab not in entry["abbreviations"]:
+                    entry["abbreviations"].append(ab)
+            for af in ca.get("affiliations", []):
+                if af and af not in entry["affiliations"]:
+                    entry["affiliations"].append(af)
+
+        if doi not in db["authors"][key]["papers_as_corresponding"]:
+            db["authors"][key]["papers_as_corresponding"].append(doi)
+        db["authors"][key]["last_updated"] = time.strftime("%Y-%m-%d")
+
+    # Track all authors as coauthors for abbreviation matching
+    for a in authors:
+        akey = _normalize_abbrev(a["full_name"])
+        if akey not in db["authors"]:
+            # Only create entry for corresponding authors; but record
+            # abbreviation mapping for lookup
+            continue
+        if doi not in db["authors"][akey].get("papers_as_coauthor", []):
+            db["authors"][akey].setdefault("papers_as_coauthor", []).append(doi)
+
+    return db
+
+
+def resolve_author_name(abbrev: str, doi: str | None = None,
+                        db: dict | None = None) -> tuple[str, bool]:
+    """Resolve an abbreviated author name to full name.
+
+    Lookup priority:
+    1. CrossRef (if DOI available) → also updates DB
+    2. Local DB (match by abbreviation)
+    3. Return abbreviation as-is, mark dirty=True
+
+    Returns (full_name, is_dirty).
+    """
+    if db is None:
+        db = load_authors_db()
+
+    norm = _normalize_abbrev(abbrev)
+
+    # 1. Try CrossRef if DOI available
+    if doi:
+        authors = fetch_crossref_authors(doi)
+        if authors:
+            for a in authors:
+                a_norm = _normalize_abbrev(a["full_name"])
+                # Match: abbreviation matches initials+family pattern
+                a_family = _normalize_abbrev(a.get("family", ""))
+                a_initials = "".join(p[0] for p in a.get("given", "").split()
+                                     if p and p[0].isalpha()).lower()
+                # Check if abbrev matches this author
+                if norm == a_norm or norm == f"{a_initials}{a_family}":
+                    # Found in CrossRef, update DB
+                    db = update_authors_from_doi(doi, db)
+                    save_authors_db(db)
+                    return a["full_name"], False
+            # CrossRef returned authors but none matched — still update DB
+            db = update_authors_from_doi(doi, db)
+            save_authors_db(db)
+
+    # 2. Try local DB
+    for key, entry in db["authors"].items():
+        known_abbrevs = [_normalize_abbrev(x) for x in entry.get("abbreviations", [])]
+        if norm in known_abbrevs or norm == key:
+            return entry["full_name"], entry.get("dirty", False)
+
+    # 3. Dirty data — record it
+    dirty_key = f"dirty_{norm}"
+    if dirty_key not in db["authors"]:
+        db["authors"][dirty_key] = {
+            "full_name": abbrev,
+            "abbreviations": [abbrev],
+            "affiliations": [],
+            "papers_as_corresponding": [],
+            "papers_as_coauthor": [],
+            "dirty": True,
+            "last_updated": time.strftime("%Y-%m-%d"),
+            "note": "Could not resolve to full name via CrossRef or DB",
+        }
+        save_authors_db(db)
+
+    return abbrev, True
+
+
+def build_authors_db(papers: list[dict]) -> dict:
+    """Batch build the author database from a list of papers.
+
+    Queries CrossRef for each paper with a DOI, extracts corresponding
+    authors, and populates the DB.
+    """
+    db = load_authors_db()
+    console.print(f"  [dim]Building author DB from {len(papers)} papers...[/dim]")
+
+    for i, p in enumerate(papers):
+        doi = p.get("doi")
+        if not doi or p.get("doi_status", "").startswith("no_doi"):
+            continue
+        console.print(f"  [{i+1}/{len(papers)}] DOI: {doi[:40]}...", end="")
+        try:
+            db = update_authors_from_doi(doi, db)
+            console.print(" [green]✓[/green]")
+        except Exception as e:
+            console.print(f" [red]✗ {e}[/red]")
+        time.sleep(0.5)  # CrossRef rate limit
+
+    save_authors_db(db)
+
+    total = len(db["authors"])
+    dirty = sum(1 for v in db["authors"].values() if v.get("dirty"))
+    console.print(f"  [bold green]Author DB: {total} entries ({dirty} dirty)[/bold green]")
+    return db
+
+
+# ---------------------------------------------------------------------------
 # Phase 2: Zotero Collection Management
 # ---------------------------------------------------------------------------
 

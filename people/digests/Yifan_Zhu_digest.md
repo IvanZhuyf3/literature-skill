@@ -23,7 +23,7 @@
 ### 两个清晰的学术阶段
 
 **阶段 I — 香港大学 (2016–2022)**  
-以 Kenneth MC Wong 课题组为中心，从事 organometallic 光化学研究。核心工具：飞秒瞬态吸收光谱、发光寿命测量、电化学方法。研究对象涵盖 Pt(II)、Au(III)、Ir(II) 配合物的光致变色、磷光发光、延迟荧光等光物理性质。
+以 Keith Man-Chung Wong 课题组为中心，从事 organometallic 光化学研究。核心工具：飞秒瞬态吸收光谱、发光寿命测量、电化学方法。研究对象涵盖 Pt(II)、Au(III)、Ir(II) 配合物的光致变色、磷光发光、延迟荧光等光物理性质。
 
 **阶段 II — 波士顿大学 (2020–2026)**  
 加入 Ji-Xin Cheng 课题组后，全面转向振动光热显微成像技术开发。方法论主线：**瞬态吸收/光声 → SRP → SWIP → OPT → HELP-CARS**，灵敏度从 millimolar 逐步推向 micromolar 和单分子水平。
@@ -55,7 +55,7 @@
 | Ji-Xin Cheng | 14 | Boston University (PI) | 振动成像全方向 | 2020–2026 |
 | Hongli Ni | 8 | BU → currently CUHK? | SRS/SWIP/spSRP | 2021–2026 |
 | Xiaowei Ge | 6 | BU → currently? | SRP/OPT/光纤SRP | 2023–2025 |
-| Kenneth MC Wong | 4 | HKU | Organometallic 光化学 | 2016–2021 |
+| Keith Man-Chung Wong | 4 | HKU | Organometallic 光化学 | 2016–2021 |
 | Le Wang | 4 | BU → 清华 | SWIP/OPT/空间偏移 | 2023–2025 |
 | Haonan Lin | 4 | BU → currently? | OPT/生物成像 | 2023–2026 |
 | Chinmayee V. P. Dessai | 4 | BU → currently? | SRP/SWIP/光纤SRP | 2023–2025 |

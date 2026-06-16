@@ -1,0 +1,178 @@
+{
+  "authors": {
+    "denisjacquemin": {
+      "full_name": "Denis Jacquemin",
+      "abbreviations": [
+        "D Jacquemin"
+      ],
+      "affiliations": [
+        "Laboratoire CEISAM",
+        "UMR CNRS 6230",
+        "Université de Nantes",
+        "44322 Nantes Cedex 03",
+        "France"
+      ],
+      "papers_as_corresponding": [
+        "10.1039/c6cc03431d"
+      ],
+      "papers_as_coauthor": [
+        "10.1039/c6cc03431d"
+      ],
+      "dirty": false,
+      "last_updated": "2026-06-16"
+    },
+    "keithmanchungwong": {
+      "full_name": "Keith Man‐Chung Wong",
+      "abbreviations": [
+        "KMC Wong",
+        "KM Wong"
+      ],
+      "affiliations": [
+        "Department of Chemistry Southern University of Science and Technology  No. 1088, Tangchang Boulevard Nanshan District Shenzhen 518055 P.R. China",
+        "Department of Chemistry, Southern University of Science and Technology, 1088 Xueyuan Blvd., Shenzhen, 518055, P. R. China"
+      ],
+      "papers_as_corresponding": [
+        "10.1002/open.201800008",
+        "10.1039/d1sc02787e",
+        "10.1038/s42004-022-00775-4"
+      ],
+      "papers_as_coauthor": [
+        "10.1002/open.201800008",
+        "10.1039/c8cc10177a",
+        "10.1039/d1sc02787e",
+        "10.1038/s42004-022-00775-4",
+        "10.1039/c6cc03431d"
+      ],
+      "dirty": false,
+      "last_updated": "2026-06-16"
+    },
+    "chunyuho": {
+      "full_name": "Chun-Yu Ho",
+      "abbreviations": [
+        "CY Ho",
+        "C Ho"
+      ],
+      "affiliations": [
+        "Shenzhen Grubbs Institute",
+        "Department of Chemistry",
+        "Southern University of Science and Technology (SUSTech)",
+        "Shenzhen 518055",
+        "China"
+      ],
+      "papers_as_corresponding": [
+        "10.1039/c8cc10177a"
+      ],
+      "papers_as_coauthor": [
+        "10.1039/c8cc10177a"
+      ],
+      "dirty": false,
+      "last_updated": "2026-06-16"
+    },
+    "jixincheng": {
+      "full_name": "Ji-Xin Cheng",
+      "abbreviations": [
+        "JX Cheng",
+        "J Cheng"
+      ],
+      "affiliations": [
+        "Department of Chemistry, Boston University 1 , Boston, Massachusetts 02215, USA",
+        "Department of Biomedical Engineering, Boston University 2 , Boston, Massachusetts 02215, USA",
+        "Department of Electrical and Computer Engineering, Boston University 3 , Boston, Massachusetts 02215, USA",
+        "Photonics Center, Boston University 4 , Boston, Massachusetts 02215, USA",
+        "Department of Chemistry Department of Electrical and Computer Engineering Boston University  Boston MA 02215 USA",
+        "Department of Physics Department of Biomedical Engineering Boston University  Boston MA 02215 USA",
+        "Department of Electrical and Computer Engineering, Boston University, 8 St. Mary’s Street, Boston, Massachusetts 02215, United States",
+        "Department of Chemistry, Boston University, 590 Commonwealth Avenue, Boston, Massachusetts 02215, United States",
+        "Department of Biomedical Engineering, Boston University, 44 Cummington Mall, Boston, Massachusetts 02215, United States",
+        "Photonics Centre, Boston University, 8 St. Mary’s Street, Boston, Massachusetts 02215, United States",
+        "Department of Biomedical Engineeriˆng,",
+        "Photonics Center, and",
+        "Department of Chemistry, Boston University, Boston, Massachusetts, USA.",
+        "Department of Chemistry, Boston University, Boston, MA 02215, USA.",
+        "Department of Electrical and Computer Engineering, Boston University, Boston, MA 02215, USA.",
+        "Department of Biomedical Engineering, Boston University, Boston, MA 02215, USA.",
+        "Photonics Center, Boston University, Boston, MA 02215, USA."
+      ],
+      "papers_as_corresponding": [
+        "10.1063/1.5129123",
+        "10.1002/adfm.202005192",
+        "10.1021/acs.analchem.1c03604",
+        "10.1172/jci.insight.153079",
+        "10.1126/sciadv.adi2181",
+        "10.1101/2023.03.06.531387",
+        "10.1038/s41566-024-01463-6",
+        "10.1038/s41467-024-49691-2",
+        "10.1117/12.3001775",
+        "10.1117/12.3001791",
+        "10.1364/optica.564920",
+        "10.1186/s43074-025-00196-1"
+      ],
+      "papers_as_coauthor": [
+        "10.1063/1.5129123",
+        "10.1002/adfm.202005192",
+        "10.1016/j.matt.2020.11.019",
+        "10.1021/acs.analchem.1c03604",
+        "10.1172/jci.insight.153079",
+        "10.1126/sciadv.adi2181",
+        "10.1101/2023.03.06.531387",
+        "10.1038/s41566-024-01463-6",
+        "10.1038/s41467-024-49691-2",
+        "10.1038/s41564-024-01853-0",
+        "10.1117/12.3001775",
+        "10.1117/12.3001791",
+        "10.1364/optica.564920",
+        "10.1126/sciadv.adw4939",
+        "10.1186/s43074-025-00196-1"
+      ],
+      "dirty": false,
+      "last_updated": "2026-06-16"
+    },
+    "chenyang": {
+      "full_name": "Chen Yang",
+      "abbreviations": [
+        "C Yang"
+      ],
+      "affiliations": [
+        "Department of Electrical and Computer Engineering, Boston University, Boston, MA 02215, USA.",
+        "Department of Chemistry, Boston University, Boston, MA 02215, USA."
+      ],
+      "papers_as_corresponding": [
+        "10.1016/j.matt.2020.11.019",
+        "10.1126/sciadv.adw4939"
+      ],
+      "papers_as_coauthor": [
+        "10.1016/j.matt.2020.11.019",
+        "10.1126/sciadv.adw4939"
+      ],
+      "dirty": false,
+      "last_updated": "2026-06-16"
+    },
+    "michaelwagner": {
+      "full_name": "Michael Wagner",
+      "abbreviations": [
+        "M Wagner"
+      ],
+      "affiliations": [],
+      "papers_as_corresponding": [
+        "10.1038/s41564-024-01853-0"
+      ],
+      "papers_as_coauthor": [
+        "10.1038/s41564-024-01853-0"
+      ],
+      "dirty": false,
+      "last_updated": "2026-06-16"
+    },
+    "dirty_xyznobody": {
+      "full_name": "XYZ Nobody",
+      "abbreviations": [
+        "XYZ Nobody"
+      ],
+      "affiliations": [],
+      "papers_as_corresponding": [],
+      "papers_as_coauthor": [],
+      "dirty": true,
+      "last_updated": "2026-06-16",
+      "note": "Could not resolve to full name via CrossRef or DB"
+    }
+  }
+}
