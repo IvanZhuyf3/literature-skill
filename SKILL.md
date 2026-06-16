@@ -137,6 +137,7 @@ allowed-tools: Bash(uv:*), Bash(python:*), Bash(node:*)
 **处理流程**：
   - Phase 1: Playwright CDP 抓取 Scholar Profile → 过滤专利/会议 → 去重 preprint/正式版
   - Phase 1b: CrossRef 搜索标题匹配 DOI（排除补充材料 `.sNNN`，preprint 降权）
+  - Phase 1c: 作者数据库构建 — 从 CrossRef 提取每篇论文的通讯作者全名、affiliation、已知缩写，存入 `people/data/authors_db.json`（跨 session 持久累积）
   - Phase 2: 在 Zotero 创建 `People/<学者名>` collection
   - Phase 3: 按年份先后线性下载（默认关闭，需 `--download` 启用）
   - Phase 4: 生成文献消化模板（4 Block + ⚡ cross-talk 区）
@@ -301,6 +302,27 @@ allowed-tools: Bash(uv:*), Bash(python:*), Bash(node:*)
 ## Step 8：填充文献消化模板
 
 `-people` 的 Phase 4 生成模板后，由 agent 手动填充 4 个 Block。模板在 `people/digests/<name>_digest.md`。
+
+### 作者名解析规则（Block 2 合作者表必用）
+
+Scholar 抓取的作者名是缩写（如 `KMC Wong`、`JX Cheng`），**绝对不能脑补展开**（曾将 Keith Man-Chung Wong 错写成 Kenneth MC Wong）。填充 Block 2 合作者表时，必须按以下优先级解析全名：
+
+1. **CrossRef 查询**（最可靠）：用论文 DOI 调 `fetch_crossref_authors(doi)` 拿完整作者列表。CrossRef 的 `given` + `family` 是全名。
+2. **本地作者数据库**（`people/data/authors_db.json`）：调 `resolve_author_name(abbrev, doi, db)`，自动走 CrossRef→DB→dirty 流程。DB 只存通讯作者，跨 session 持久累积。
+3. **dirty 标记**：CrossRef 和 DB 都找不到 → 保留缩写原样，标 `dirty=True`。不要猜测全名。
+
+**调用方式**：
+```python
+from people import resolve_author_name, load_authors_db
+db = load_authors_db()
+full_name, is_dirty = resolve_author_name("KMC Wong", "10.1039/c6cc03431d", db)
+# → ("Keith Man-Chung Wong", False)
+```
+
+**已处理的坑**：
+- CrossRef 返回的连字符有 unicode 变体（`‐` U+2010 vs `-` U+002D），`_normalize_abbrev()` 已统一处理
+- 连字符姓名缩写：`Man-Chung` → `MC`（不是 `M`），代码会同时记录 `KMC Wong` 和 `KM Wong` 两种缩写
+- DB 只记录通讯作者（CrossRef `sequence=corresponding`，否则取末位作者）
 
 ### 三圈螺旋工作流
 
