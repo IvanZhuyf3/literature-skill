@@ -336,11 +336,21 @@ def _parse_download_output(output: str) -> Path | None:
 # ---------------------------------------------------------------------------
 
 def add_to_zotero(meta: dict, cfg: dict) -> str:
-    """Create a Zotero library item with full metadata. Returns item key."""
+    """Create a Zotero library item with full metadata. Returns item key.
+    
+    If an item with the same DOI/URL/title already exists, returns its key
+    instead of creating a duplicate.
+    """
     from pyzotero import zotero as zotero_mod
 
     zcfg = cfg["zotero"]
     zot = zotero_mod.Zotero(zcfg["library_id"], zcfg.get("library_type", "user"), zcfg["api_key"])
+
+    # Dedup check: search before creating
+    dup_key, dup_reason = check_duplicate(meta, cfg)
+    if dup_key:
+        console.print(f"  [yellow]↻ Existing item found ({dup_reason}): {dup_key}, skipping creation[/yellow]")
+        return dup_key
 
     doi = meta.get("DOI", "")
     has_full_meta = bool(meta.get("title") and meta.get("journal"))
