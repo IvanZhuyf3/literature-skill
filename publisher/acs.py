@@ -35,7 +35,7 @@ class ACSAdapter(PublisherAdapter):
             page.goto(url, wait_until="domcontentloaded", timeout=30000)
             # networkidle 在 ACS 页面上经常超时（太多分析脚本），放宽到 60s
             try:
-                page.wait_for_load_state("networkidle", timeout=60000)
+                page.wait_for_load_state("networkidle", timeout=10000)
             except Exception:
                 logger.warning("networkidle timeout (non-critical), continuing...")
             logger.info(f"ACS page loaded: {page.url}")

@@ -27,11 +27,22 @@ class NPGAdapter(PublisherAdapter):
     def detect(self, url: str) -> bool:
         return "nature.com" in url.lower()
 
+    def check_access(self, page) -> bool:
+        """用 PDF 下载链接存在性判断权限，不靠文本匹配。"""
+        try:
+            el = self.find_download_element(page)
+            if el is not None:
+                return True
+        except Exception:
+            pass
+        logger.warning("No PDF download link found - likely no access")
+        return False
+
     def navigate_to_paper(self, page, url: str) -> bool:
         try:
             page.goto(url, wait_until="domcontentloaded", timeout=60000)
             try:
-                page.wait_for_load_state("networkidle", timeout=60000)
+                page.wait_for_load_state("networkidle", timeout=10000)
             except Exception:
                 logger.warning("networkidle timeout (non-critical), continuing...")
             logger.info(f"NPG page loaded: {page.url}")

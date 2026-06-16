@@ -30,7 +30,7 @@ class FrontiersAdapter(PublisherAdapter):
         try:
             page.goto(url, wait_until="domcontentloaded", timeout=60000)
             try:
-                page.wait_for_load_state("networkidle", timeout=60000)
+                page.wait_for_load_state("networkidle", timeout=10000)
             except Exception:
                 logger.warning("networkidle timeout (non-critical), continuing...")
             logger.info(f"Frontiers page loaded: {page.url}")

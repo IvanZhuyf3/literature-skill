@@ -52,7 +52,7 @@ class ElsevierAdapter(PublisherAdapter):
             except Exception:
                 logger.warning("View PDF link not found after 15s, continuing...")
             try:
-                page.wait_for_load_state("networkidle", timeout=30000)
+                page.wait_for_load_state("networkidle", timeout=10000)
             except Exception:
                 logger.warning("networkidle timeout (non-critical), continuing...")
             logger.info(f"Elsevier page loaded: {page.url}")

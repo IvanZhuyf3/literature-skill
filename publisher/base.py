@@ -157,7 +157,7 @@ class PublisherAdapter(ABC):
         try:
             page.goto(url, wait_until="domcontentloaded", timeout=30000)
             # 等待页面主要内容加载
-            page.wait_for_load_state("networkidle", timeout=30000)
+            page.wait_for_load_state("networkidle", timeout=10000)
             return True
         except Exception as e:
             return False

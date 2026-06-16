@@ -141,9 +141,10 @@ def download_paper(
     publisher: str,
     config: dict,
     browser,
-    clicker: HumanLikeClicker,
+    clicker,
     monitor: DownloadMonitor,
     rate_limiter: RateLimiter,
+    fast_mode: bool = False,
 ) -> dict:
     """
     下载单篇论文的完整流程。
@@ -204,8 +205,11 @@ def download_paper(
             result["skipped"] = True
             return result
 
-    # 6. 模拟阅读行为
-    rate_limiter.simulate_reading(page)
+    # 6. 模拟阅读行为（fast_mode 跳过）
+    if not fast_mode:
+        rate_limiter.simulate_reading(page)
+    else:
+        log.info("Fast mode: skipping simulate_reading")
 
     # 7. 从 DOM 提取 PDF 下载 URL
     log.info("Locating download URL...")
@@ -268,8 +272,11 @@ def download_paper(
             log.info("Returning to article page for download...")
             adapter.navigate_to_paper(page, article_url)
 
-    # 9. 点击前延迟（模拟人类行为）
-    rate_limiter.pre_click_delay()
+    # 9. 点击前延迟（模拟人类行为）— fast_mode 跳过
+    if not fast_mode:
+        rate_limiter.pre_click_delay()
+    else:
+        log.info("Fast mode: skipping pre_click_delay")
 
     # 10. 截图记录
     # debug_screenshot(page, config, "pre_download")
@@ -346,6 +353,10 @@ def main():
     parser.add_argument(
         "--no-warmup", action="store_true",
         help="跳过暖场页面",
+    )
+    parser.add_argument(
+        "--fast", action="store_true",
+        help="快速模式：跳过模拟阅读和延迟（批量下载也可用）",
     )
 
     args = parser.parse_args()
@@ -426,6 +437,11 @@ def main():
     # results 必须在 try 之前初始化，防止异常导致汇总时 NameError
     results = []
 
+    # fast_mode: 单篇自动启用，或 --fast 显式指定
+    fast_mode = args.fast or len(urls) == 1
+    if fast_mode:
+        console.print("[dim]Fast mode enabled: skipping reading simulation & delays[/dim]")
+
     try:
         # 暖场
         if not args.no_warmup:
@@ -465,7 +481,8 @@ def main():
             dl_result = {"success": False, "url": url, "error": "no attempt made"}
             for attempt in range(1, 4):
                 dl_result = download_paper(
-                    url, publisher, config, browser, clicker, monitor, rate_limiter
+                    url, publisher, config, browser, clicker, monitor, rate_limiter,
+                    fast_mode=fast_mode,
                 )
                 if dl_result["success"]:
                     break

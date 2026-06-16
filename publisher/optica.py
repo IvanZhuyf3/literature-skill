@@ -32,7 +32,7 @@ class OpticaAdapter(PublisherAdapter):
         try:
             page.goto(url, wait_until="domcontentloaded", timeout=30000)
             try:
-                page.wait_for_load_state("networkidle", timeout=60000)
+                page.wait_for_load_state("networkidle", timeout=10000)
             except Exception:
                 pass
             logger.info(f"Optica page loaded: {page.url}")
