@@ -947,84 +947,110 @@ def print_summary(papers: list[dict], scholar_name: str):
 
 def download_one_paper(paper: dict, cfg: dict, collection_key: str,
                        timeout: int | None = None) -> dict:
-    """Download a single paper, add to Zotero, attach PDF, assign to collection.
+    """Download a single paper, ensure Zotero item, attach PDF.
     
-    Args:
-        paper: Paper metadata dict
-        cfg: Config dict
-        collection_key: Zotero collection to file into
-        timeout: Override download timeout (default: 120 from zot.download_pdf)
+    State-aware flow (handles all 3 states efficiently):
+      ① Already has PDF (dl_status=success) → skip entirely
+      ② In Zotero, no PDF (zotero_key set) → only download + attach
+      ③ Not in Zotero (no zotero_key) → create item + download + attach
     
-    Returns updated paper dict with download status.
+    Key design: Zotero item creation is decoupled from PDF download.
+    Item is created/found FIRST (fast, always works), then PDF is
+    downloaded and attached. Download failure does NOT prevent
+    Zotero registration.
     """
     title = paper.get("title", "")
     doi = paper.get("doi", "")
     
     console.print(f"\n  Processing: {title[:70]}")
     
-    if not doi:
-        paper["dl_status"] = "no_doi"
-        console.print("    [yellow]⊘ No DOI, skipping download[/yellow]")
+    # State ①: already done
+    if paper.get("dl_status") == "success":
+        console.print("    [green]✓ Already downloaded, skipping[/green]")
         return paper
     
-    # Build DOI for zot.py
-    # First resolve DOI to publisher URL (avoids "Unknown publisher" when passing raw DOI
-    # or doi.org URL, since parse_input doesn't resolve https://doi.org/... URLs)
+    if not doi:
+        paper["dl_status"] = "no_doi"
+        console.print("    [yellow]⊘ No DOI, skipping[/yellow]")
+        return paper
+    
     doi_url = f"https://doi.org/{doi}"
     
     try:
-        from url_parser import resolve_doi
-        resolved = resolve_doi(doi)
-        if resolved:
-            console.print(f"    [dim]DOI resolved → {resolved[:60]}[/dim]")
-            download_url = resolved
-        else:
-            download_url = doi_url  # fallback, may fail
-    except Exception as e:
-        console.print(f"    [yellow]DOI resolve failed ({e}), trying raw URL[/yellow]")
-        download_url = doi_url
-    
-    try:
-        # Use zot.py's functions directly
         sys.path.insert(0, str(Path(__file__).parent))
         import zot
+        from pyzotero import zotero as zotero_mod
         
-        # Step 1: Download PDF (pass resolved publisher URL, with timeout)
-        console.print("    [dim]Downloading PDF...[/dim]")
+        # ── Step 1: Ensure Zotero item exists (State ② → reuse key, State ③ → create) ──
+        item_key = paper.get("zotero_key", "")
+        if item_key:
+            # State ②: already registered, verify it still exists
+            console.print(f"    [dim]Using existing Zotero item: {item_key}[/dim]")
+        else:
+            # State ③: create new item (add_to_zotero has built-in dedup)
+            meta = {
+                "DOI": doi,
+                "title": title,
+                "url": doi_url,
+                "journal": paper.get("venue", ""),
+                "year": str(paper.get("year", "")),
+            }
+            author_str = paper.get("authors", "")
+            if author_str:
+                raw = [a.strip() for a in author_str.split(",")]
+                meta["authors"] = [a for a in raw if a and a != "..." and len(a) > 1]
+            
+            item_key = zot.add_to_zotero(meta, cfg)
+            paper["zotero_key"] = item_key
+            console.print(f"    [dim]Zotero item: {item_key}[/dim]")
+        
+        # Assign to collection (idempotent — skips if already assigned)
+        _assign_to_collection(item_key, collection_key, cfg)
+        
+        # ── Step 2: Check if item already has a PDF attachment ──
+        zcfg = cfg["zotero"]
+        zot_client = zotero_mod.Zotero(zcfg["library_id"], zcfg.get("library_type", "user"), zcfg["api_key"])
+        children = zot_client.children(item_key)
+        has_pdf = any(
+            c.get("data", {}).get("contentType") == "application/pdf"
+            for c in children
+        )
+        if has_pdf:
+            paper["dl_status"] = "success"
+            paper["dl_note"] = "PDF already attached to existing item"
+            console.print("    [green]✓ PDF already attached, marking success[/green]")
+            return paper
+        
+        # ── Step 3: Download PDF ──
+        from url_parser import resolve_doi
+        try:
+            resolved = resolve_doi(doi)
+            download_url = resolved if resolved else doi_url
+        except Exception:
+            download_url = doi_url
+        
+        console.print(f"    [dim]Downloading PDF...[/dim]")
         dl_timeout = timeout if timeout is not None else 120
         pdf_path = zot.download_pdf(download_url, cfg, timeout=dl_timeout)
         
-        # Step 2: Create Zotero item with metadata from CrossRef
-        meta = {
-            "DOI": doi,
-            "title": title,
-            "url": doi_url,
-            "journal": paper.get("venue", ""),
-            "year": str(paper.get("year", "")),
-        }
-        # Parse authors from "Y Zhu, JX Cheng" format, filter out truncation artifacts
-        author_str = paper.get("authors", "")
-        if author_str:
-            raw = [a.strip() for a in author_str.split(",")]
-            meta["authors"] = [a for a in raw if a and a != "..." and len(a) > 1]
-        
-        item_key = zot.add_to_zotero(meta, cfg)
-        paper["zotero_key"] = item_key
-        
-        # Step 3: Attach PDF
+        # ── Step 4: Attach PDF ──
         att_key = zot.attach_pdf(item_key, pdf_path, cfg)
         paper["attachment_key"] = att_key
-        
-        # Step 4: Assign to scholar's collection
-        _assign_to_collection(item_key, collection_key, cfg)
         
         paper["dl_status"] = "success"
         console.print(f"    [green]✓ Done: item={item_key}, att={att_key}[/green]")
         
     except Exception as e:
-        paper["dl_status"] = "failed"
-        paper["dl_error"] = str(e)[:200]
-        console.print(f"    [red]✗ Failed: {str(e)[:100]}[/red]")
+        err = str(e)[:200]
+        # Distinguish: Zotero item was created but PDF download failed
+        if paper.get("zotero_key"):
+            paper["dl_status"] = "failed"
+            paper["dl_error"] = err
+            console.print(f"    [red]✗ PDF failed (item {paper['zotero_key']} exists): {err[:80]}[/red]")
+        else:
+            paper["dl_status"] = "failed"
+            paper["dl_error"] = err
+            console.print(f"    [red]✗ Failed: {err[:80]}[/red]")
     
     return paper
 
