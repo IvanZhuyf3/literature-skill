@@ -309,7 +309,7 @@ class ElsevierAdapter(PublisherAdapter):
             logger.warning(f"  Could not get window info: {e}")
 
         self._print_start_time = time.time()
-        self._click_pdf_download_button(new_page, window_info, monitor)
+        self._click_pdf_download_button(new_page, window_info, None)
 
         self._pdf_tab = new_page if not getattr(self, '_reuse_original_page', False) else None
         self._article_page = page

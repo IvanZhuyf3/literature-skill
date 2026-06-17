@@ -569,3 +569,10 @@ Action: Skipped - not fixable via cron
 - Type: B (access denied)
 - Resolution: Marked as failed, no adapter fix applicable
 
+
+## 2026-06-16 23:41 - Ji_Xin_Cheng cron
+DOI: 10.1016/S1386-1425(98)00157-7
+Title: The high resolution spectrum of AsH3 (4 0 0) local mode state
+Fix: Patched NameError in elsevier.py:312 (undefined 'monitor')
+Retry result: timeout (120s) - publisher page hung (cat A)
+

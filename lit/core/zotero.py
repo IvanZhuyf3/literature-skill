@@ -314,9 +314,10 @@ def collection_items_top(collection_key: str) -> list[dict]:
 
 
 def delete_item(item_key: str):
-    """Delete an item by key."""
+    """Delete an item by key. Fetches the item first to get version info."""
     zot = _client()
-    zot.delete_item(item_key)
+    item = zot.item(item_key)
+    zot.delete_item(item)
 
 
 # ── Attachment operations ──

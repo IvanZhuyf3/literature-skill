@@ -2,7 +2,7 @@
   "scholar_name": "Ji-Xin Cheng",
   "scholar_id": "M7fTV28AAAAJ",
   "scholar_url": "",
-  "scraped_at": "2026-06-16 23:10:44",
+  "scraped_at": "2026-06-16 23:40:55",
   "paper_count": 569,
   "papers": [
     {
@@ -192,10 +192,11 @@
       "type": "journal",
       "doi_status": "matched",
       "doi_score": 0.982,
-      "dl_status": "failed",
+      "dl_status": "success",
       "dl_error": "0",
       "zotero_key": "TUFM78EB",
-      "zotero_status": "registered"
+      "zotero_status": "registered",
+      "dl_note": "PDF already attached to existing item"
     },
     {
       "title": "Yuanye: le traité du jardin",
@@ -238,7 +239,7 @@
       "doi_status": "matched",
       "doi_score": 0.991,
       "dl_status": "failed",
-      "dl_error": "paper_at_home did not produce a PDF file",
+      "dl_error": "paper_at_home timed out (120s), publisher page hung",
       "zotero_key": "DGDT6XDW",
       "zotero_status": "registered"
     },
