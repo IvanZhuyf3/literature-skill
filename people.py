@@ -1448,139 +1448,39 @@ def generate_digest_template(papers: list[dict], scholar_name: str,
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
-# Phase 3b: Attach missing PDFs (human-in-the-loop mode)
+# Phase 3b: Attach missing PDFs (delegates to zotero_attach module)
 # ---------------------------------------------------------------------------
 
 def attach_missing_pdfs(scholar_name: str, cfg: dict,
                          max_downloads: int | None = None) -> dict:
-    """Read Zotero collection, find items without PDF attachments, download & attach.
+    """Delegate to zotero_attach module.
 
-    Designed to run AFTER user data cleaning. The Zotero collection is the
-    source of truth — we read it directly, not from papers.json.
-
-    Workflow:
-      1. Locate ``People/<scholar_name>`` collection
-      2. Read all parent items (skip attachments/notes)
-      3. For each, check children for PDF attachments
-      4. Collect items without PDF that still have a DOI
-      5. Download PDF and attach via WebDAV mode
-
-    Returns stats dict: {attached, no_doi, failed, total, missing_fields}
+    Thin wrapper — the real logic lives in zotero_attach.py so it can be
+    used standalone or from other scripts.
     """
-    from pyzotero import zotero as zotero_mod
-    sys.path.insert(0, str(Path(__file__).parent))
+    from zotero_attach import attach_missing_pdfs as _do_attach
+    return _do_attach(scholar_name, cfg, parent_collection="People",
+                       max_downloads=max_downloads)
 
-    zcfg = cfg["zotero"]
-    zot = zotero_mod.Zotero(zcfg["library_id"], zcfg.get("library_type", "user"), zcfg["api_key"])
-    stats = {"attached": 0, "no_doi": 0, "failed": 0, "total": 0,
-             "already_have": 0, "skipped_no_doi": 0}
 
-    # Step 1: find collection
-    collection_key = ensure_scholar_collection(scholar_name, cfg)
-
-    # Step 2: read all parent items (paginate)
-    all_items = []
-    start = 0
-    while True:
-        batch = zot.collection_items_top(collection_key, limit=100, start=start)
-        if not batch:
-            break
-        all_items.extend(batch)
-        start += 100
-        if len(batch) < 100:
-            break
-    items = all_items
-    console.print(f"\n  Found {len(items)} items in [bold]{scholar_name}[/bold] collection")
-
-    # Step 3-4: filter to items without PDF + with DOI
-    to_process = []
-    for item in items:
-        d = item.get("data", {})
-        key = item.get("key")
-        if d.get("itemType") in ("attachment", "note"):
-            continue
-        doi = d.get("DOI", "").strip()
-        if not doi:
-            stats["skipped_no_doi"] += 1
-            continue
-
-        # Check children for PDF
-        try:
-            children = zot.children(key)
-        except Exception:
-            children = []
-        has_pdf = any(
-            c.get("data", {}).get("contentType") == "application/pdf"
-            for c in children
-        )
-        if has_pdf:
-            stats["already_have"] += 1
-            continue
-
-        to_process.append({
-            "key": key,
-            "doi": doi,
-            "title": d.get("title", "")[:70],
-            "url": d.get("url", ""),
-        })
-
-    stats["total"] = len(to_process)
-    console.print(f"  Already have PDF: {stats['already_have']}")
-    console.print(f"  Skipped (no DOI): {stats['skipped_no_doi']}")
-    console.print(f"  To download: {stats['total']}")
-
-    if not to_process:
-        return stats
-
-    # Step 5: download & attach
-    import zot as zot_mod
-    from url_parser import resolve_doi
-
-    for i, paper in enumerate(to_process):
-        if max_downloads and i >= max_downloads:
-            console.print(f"\n  [yellow]Reached max_downloads ({max_downloads}), stopping[/yellow]")
-            break
-
-        console.print(f"\n  [{i+1}/{stats['total']}] {paper['title']}")
-        doi = paper["doi"]
-
-        try:
-            # Resolve DOI → publisher URL
-            try:
-                resolved = resolve_doi(doi)
-                download_url = resolved if resolved else f"https://doi.org/{doi}"
-            except Exception:
-                download_url = f"https://doi.org/{doi}"
-
-            # Download PDF
-            console.print(f"    [dim]Downloading {doi} ...[/dim]")
-            pdf_path = zot_mod.download_pdf(download_url, cfg, timeout=120)
-
-            # Attach via WebDAV
-            att_key = zot_mod.attach_pdf(paper["key"], pdf_path, cfg)
-            stats["attached"] += 1
-            console.print(f"    [green]✓ Attached: {att_key}[/green]")
-
-        except Exception as e:
-            err = str(e)[:200]
-            # Check if PDF maybe already existed (recoverable)
-            if "quota" in err.lower():
-                stats["failed"] += 1
-                console.print(f"    [red]✗ Quota: {err[:80]}[/red]")
-            else:
-                stats["failed"] += 1
-                console.print(f"    [red]✗ Failed: {err[:80]}[/red]")
-
-    console.print(f"\n  [bold]Summary:[/bold] "
-                  f"✓ {stats['attached']} attached, "
-                  f"✗ {stats['failed']} failed, "
-                  f"⊘ {stats['skipped_no_doi']} no DOI")
-    return stats
+# ===========================================================================
+# LEGACY: batch download functions (deprecated)
+#
+# These were designed for the old fully-automated workflow where
+# people.py did everything from scrape → download in one shot.
+# The current human-in-the-loop workflow uses:
+#   people.py --scrape-only  +  people.py --register-only
+#   → user cleans data →
+#   zotero_attach.py --collection "..."  +  people.py --template-only
+#
+# The functions below are kept for backward compatibility and for the
+# cron-based fallback path. They are NOT imported by the new workflow.
+# ===========================================================================
 
 
 def main():
     import argparse
-    
+
     parser = argparse.ArgumentParser(
         description="people: Scholar Profile → Zotero → 文献消化",
         formatter_class=argparse.RawDescriptionHelpFormatter,

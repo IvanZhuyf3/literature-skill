@@ -71,9 +71,18 @@ allowed-tools: Bash(uv:*), Bash(python:*), Bash(node:*)
 
 ## Step 2d：人物处理
 
-详见 `references/people-guide.md`。
+【新推荐】`zotero_attach.py` — 独立模块，读 Zotero 文件夹补缺失 PDF（人机合作流程 Phase 3）
 
-**推荐工作流（人机合作）**：
+```bash
+# 直接使用
+python "<skill-base>/zotero_attach.py" --collection "学者名"
+python "<skill-base>/zotero_attach.py" --collection "学者名" --max-papers 5
+
+# 也支持通过 people.py 调用（薄封装）
+python "<skill-base>/people.py" --attach-missing --scholar-name "学者名"
+```
+
+详见下方「人机合作推荐流程」。
 
 1. Agent：`--scrape-only` → 抓取 Scholar profile
 2. Agent：`--register-only` → 批量注册到 Zotero（纯 CrossRef 元数据，~0.7s/篇，不下载 PDF）

@@ -16,7 +16,8 @@
 | 仅生成消化模板 | `python <skill-base>/people.py --template-only --scholar-name "学者名"` |
 | 限制篇数测试 | `python <skill-base>/people.py "URL" --scrape-only --max-papers 5` |
 | 第二轮重试（失败论文） | `python <skill-base>/people.py --retry --scholar-name "学者名"` |
-| **补缺PDF（清洗后）** | `python <skill-base>/people.py --attach-missing --scholar-name "学者名"` |
+| **补缺PDF（人机合作）** | `python <skill-base>/zotero_attach.py --collection "学者名"` |
+| 也支持 people.py 封装 | `python <skill-base>/people.py --attach-missing --scholar-name "学者名"` |
 
 ## 处理流程
 
@@ -58,15 +59,18 @@ python people.py --register-only --scholar-name "学者名"
 
 ```bash
 # 3a. 读取 Zotero 文件夹，下载并挂载缺 PDF 的条目
-python people.py --attach-missing --scholar-name "学者名"
+python <skill-base>/zotero_attach.py --collection "学者名"
+# 或者通过 people.py（薄封装）
+python <skill-base>/people.py --attach-missing --scholar-name "学者名"
+
 # 3b. 生成消化模板
-python people.py --template-only --scholar-name "学者名"
+python <skill-base>/people.py --template-only --scholar-name "学者名"
 ```
 
 代码行为：
 - **不依赖 `papers.json`**（之前抓取的数据）——直接从 Zotero API 读取 `People/<学者名>` 文件夹的当前状态
 - 只处理有 DOI 且无 PDF 附件的条目
-- 已有 PDF 的条目自动跳过
+- 已有 PDF 的条目自动跳过（通过一次 API 拉取全部条目含子项，本地交叉比对，无逐项 N+1 开销）
 - 每次下载一篇，失败不影响其他篇
 
 ### ⚠️ 为什么不一把走完 `-people "URL" --download`？
