@@ -544,6 +544,12 @@ def resolve_local_pdf(att_key: str, cfg: dict) -> str:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
+    """[DEPRECATED] Use ``lit import`` instead. See ``lit --help``."""
+    import warnings
+    warnings.warn(
+        "zot.py is deprecated. Use 'lit import <DOI/URL>' instead. See 'lit --help'.",
+        DeprecationWarning, stacklevel=2
+    )
     import argparse
     parser = argparse.ArgumentParser(description="zot: Add paper to Zotero library")
     parser.add_argument("url", nargs="?", help="Paper URL or DOI")

@@ -447,6 +447,12 @@ def _poll_batch_result_all(batch_id, token, timeout=None):
 # ─── CLI ────────────────────────────────────────────────────────────
 
 def main():
+    """[DEPRECATED] Use ``lit parse`` instead. See ``lit --help``."""
+    import warnings
+    warnings.warn(
+        "pdf_parser.py is deprecated. Use 'lit parse <pdf_path>' instead. See 'lit --help'.",
+        DeprecationWarning, stacklevel=2
+    )
     import argparse
     parser = argparse.ArgumentParser(description="Parse PDF via MinerU online API")
     parser.add_argument("pdf_path", help="Path to PDF file")

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import sys
 import argparse
+from pathlib import Path
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -92,8 +93,11 @@ def main():
         run(args.collection, parent=args.parent, output=args.output)
 
     elif args.command == "qr":
-        from generate_qr import main as qr_main
-        qr_main(args.doi)
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from generate_qr import generate_qr as _qr, slugify_doi
+        out_dir = str(Path(__file__).resolve().parent.parent / "download" / "temp")
+        out = _qr(args.doi, out_dir)
+        print(f"  QR code: {out}")
 
 
 if __name__ == "__main__":

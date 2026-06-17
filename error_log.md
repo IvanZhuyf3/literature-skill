@@ -532,3 +532,40 @@ IOP 也是顺利的出版商：
 7. 确定下载类型（简单型 / 多页型 / 跨域型 / 打印型）
 8. 实现适配器 + 注册 + 测试
 9. **记录问题到 `error_log.md`**
+
+## 2026-06-16 — Ji_Xin_Cheng: 10.1002/jccs.197500045 (Type B: Access/Subscription)
+- Paper: "The Neutral Part of the Bark of Pinus Luchuensis Mayer" (J. Chinese Chem. Soc., 1975)
+- Publisher: Wiley (adapter registered, "Download PDF" selector works, PDF URL resolved to /doi/pdf/DOI)
+- Error: epdf redirect resolution fails — navigating /doi/epdf/DOI redirects to /doi/abs/DOI with login/register prompts (Individual login, Institutional login, REGISTER). No pdfdirect link present.
+- Root cause: Article is subscription-restricted; current Edge session has no authenticated access. Type B.
+- Action: Not fixable via code. Logged + skipped. Status stays 'failed'.
+
+##  — Ji_Xin_Cheng cron tick
+- **Paper:** The Neutral Part of the Bark of Pinus Luchuensis Mayer
+- **DOI:** 10.1002/jccs.197500045 (wiley / jccs, 1975)
+- **Category:** B (Access denied / subscription)
+- **Symptom:** epdf URL redirects to /doi/abs/ (no viewer loads); "No pdfdirect link found on epdf page" x3
+- **Action:** Logged + skipped. Not fixable (no open access).
+[2026-06-16 22:12:05]
+DOI: 10.1002/jccs.197500045 (Wiley - onlinelibrary.wiley.com)
+Error: Failed to resolve PDF URL through redirects (3 attempts) - Type A runtime/navigation
+Action: Skipped - not fixable via cron
+---
+## E-WILEY-001: Wiley 403 access denied (2026-06-16)
+
+**Paper:** The Neutral Part of the Bark of Pinus Luchuensis Mayer
+**DOI:** 10.1002/jccs.197500045
+**URL:** https://onlinelibrary.wiley.com/doi/10.1002/jccs.197500045
+**Symptom:** PDF links (epdf/pdf/pdfdirect) all return HTTP 403 text/html.  
+  Article page loads normally, PDF download buttons visible in DOM, but fetch() returns 403.
+**Category:** Access denied / subscription (type B)
+**Resolution:** Skipped — not fixable without subscription access.
+## 2026-06-16 Wiley paper failed (subscription)
+
+- DOI: 10.1002/jccs.197500045
+- Title: The Neutral Part of the Bark of Pinus Luchuensis Mayer
+- Publisher: Wiley (onlinelibrary.wiley.com)
+- Error: Subscription required — /doi/pdf/ returned 403, /doi/epdf/ redirected to abstract
+- Type: B (access denied)
+- Resolution: Marked as failed, no adapter fix applicable
+

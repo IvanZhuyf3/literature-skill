@@ -13,179 +13,108 @@ description: |
 allowed-tools: Bash(uv:*), Bash(python:*), Bash(node:*)
 ---
 
+# 新版 CLI（推荐）
+
+```bash
+python -m lit scholar <URL>           # 抓取 Scholar → 注册 Zotero
+python -m lit scholar <URL> --scrape-only  # 仅抓取，不注册
+python -m lit import <DOI/URL>        # 单篇 → 注册 Zotero
+python -m lit import <image_path>     # 图片 OCR → 注册 Zotero
+python -m lit attach <collection>     # 读 Zotero → 批量补 PDF
+python -m lit digest <collection>     # 读 Zotero → 生成消化报告
+python -m lit download <DOI/URL>      # 仅下载 PDF（不入 Zotero）
+python -m lit parse <pdf_path>        # MinerU 解析 PDF → Markdown
+python -m lit qr <DOI>                # 生成 QR 码
+```
+
+旧版入口（`people.py`, `zot.py`, `main.py` 等）已弃用，但代码保留兼容。
+
 # 规则
 
 - 把当前 `SKILL.md` 所在目录视为 `<skill-base>`。所有本地资源从 `<skill-base>` 解析，不依赖调用方工作目录。
-- **功能入口**（子命令作为参数传入 `/literature-skill`）：
-  - `-paper` → `python "<skill-base>/zot.py"` — 全套
-  - `-zot` → `python "<skill-base>/zot.py" --no-download` — 仅 Zotero
-  - `-download` → `python "<skill-base>/main.py"` — 仅下载
-  - `-qr` → `python "<skill-base>/generate_qr.py"` — 生成 QR 码
-  - `-pdf` → 文件搜索查找已下载的 PDF
-- **Chromium 启动**：推荐手动启动（有机构登录状态，`--remote-debugging-port=19222`）。main.py 的 fallback `launch_browser()` 使用独立临时 profile，**无机构登录状态**。
+- **Zotero 是唯一数据源**。不再使用 `papers.json` 中间文件。所有状态读自 Zotero API。
+- **Zotero 同步方式**：`config.yaml` 的 `zotero.sync_method` 控制附件挂载方式。`webdav`（推荐）：JSON API 建条目 + 本地拷文件，不消耗 Zotero 云配额。`cloud`：API multipart 上传（走配额）。`webdav` 会自动回退云模式遇到 413 quota 错误。详见 `references/webdav-setup.md`。
+- **DOI 是稳定 key**：始终用 DOI 查找 Zotero 条目，不信任本地缓存的 key。
+- **`lit.core.zotero.check_duplicate()` 内置去重**：按 DOI/URL/title 搜索，已存在则返回现有 key。所有调用路径都受益。
+- **Chromium 启动**：推荐手动启动（有机构登录状态，`--remote-debugging-port=19222`）。`lit download` / `lit attach` 默认用 CDP 连接。
 - Elsevier 论文额外依赖 Foxit Reader（Print to PDF 虚拟打印机）。
-- Python 依赖：`playwright`, `pyautogui`, `requests`, `pyyaml`, `rich`, `pyzotero`。首次使用运行 `<skill-base>/setup.bat`。PDF 解析额外依赖 MinerU API（`config.yaml` 配置 token，无需额外安装）。
-- 所有命令设置 `PYTHONIOENCODING=utf-8` 避免 Windows GBK 编码问题。
-- 支持的出版商由 `<skill-base>/url_parser.py` 的 `PUBLISHER_PATTERNS` 自动匹配。
-- 下载失败时，先查 `<skill-base>/error_log.md` 该出版商的条目，再用 `--debug` 重跑。深度调试读 `<skill-base>/references/architecture.md`。
-- **OCR DOI 和 CrossRef 匹配都不可全信**。检查 `crossref_score`：<30 时匹配不可信，需用 OCR 原文手动搜索正确 DOI。两个 DOI 冲突时，分别查 CrossRef，以标题+作者+期刊三方匹配为准。
-- 图片引用提取走 `ocr_citation.py`（依赖 DeepSeek Vision API `http://127.0.0.1:3000`）。
-- PDF 结构化解析走 `pdf_parser.py`（依赖 MinerU online API，需 `config.yaml` 的 `mineru.token`）。
+- Python 依赖：`playwright`, `pyautogui`, `requests`, `pyyaml`, `rich`, `pyzotero`。首次使用运行 `<skill-base>/setup.bat`。
+- 支持的出版商由 `<skill-base>/url_parser.py` 的 `PUBLISHER_PATTERNS` 自动匹配。适配器在 `<skill-base>/download/adapters/`。
+- 下载失败时，先查 `<skill-base>/error_log.md` 该出版商的条目。深度调试读 `<skill-base>/references/architecture.md`。
+- **OCR DOI 和 CrossRef 匹配都不可全信**。检查 `crossref_score`：<30 时匹配不可信。
 
 # 工作流程
 
 ## Step 1：判定任务类型
 
-| 用户意图 | 命令入口 | 路径 |
-|---------|---------|------|
-| `-people`、收集某学者所有论文 | `people.py` | Step 2d |
-| `-retry`、重试失败下载 | `people.py --retry` | Step 2d |
-| `-download`、下载论文 | `main.py` | Step 2a |
-| 下载失败、报错 | `main.py --debug` | Step 2b |
-| 支持新出版商 | 手动 | Step 2c |
-| `-paper`、全套 | `zot.py` | Step 3 |
-| `-zot`、仅 Zotero | `zot.py --no-download` | Step 4 |
-| 图片提取引用 | `ocr_citation.py` | Step 5 |
-| `-qr`、二维码 | `generate_qr.py` | Step 6 |
-| `-pdf`、找 PDF | 文件搜索 | Step 7 |
-| `-parse`、解析 PDF | `pdf_parser.py` | Step 9 |
+| 用户意图 | 推荐命令 | 旧版（已弃用） |
+|---------|---------|------------|
+| 收集某学者所有论文 | `lit scholar <URL>` | `people.py "URL" --scrape-only` |
+| 清洗后补缺 PDF | `lit attach <collection>` | `zotero_attach.py --collection "X"` |
+| 生成消化报告 | `lit digest <collection>` | `people.py --template-only --scholar-name "X"` |
+| 单篇加 Zotero | `lit import <DOI/URL>` | `zot.py <URL>` |
+| 单篇下载 PDF | `lit download <DOI/URL>` | `main.py <URL>` |
+| 图片提取引用 | `lit import <image_path>` | `ocr_citation.py <image>` |
+| 生成 QR 码 | `lit qr <DOI>` | `generate_qr.py <DOI>` |
+| PDF 解析 | `lit parse <pdf_path>` | `pdf_parser.py <pdf_path>` |
+| 添加新出版商 | 手动 | 手动 |
 
-## Step 2a：执行下载
+## Step 2：下载排查 & 适配器
 
-1. **单篇**：`set PYTHONIOENCODING=utf-8 && python "<skill-base>/main.py" "URL"`（加 `--launch-browser` 自动启动 Chromium）
-2. **批量**：`set PYTHONIOENCODING=utf-8 && python "<skill-base>/main.py" --input urls.txt`
-3. **加速**：批处理加 `--no-warmup` 省 ~15s/篇；加 `--output <dir>` 指定目录；`--debug` 看日志
-4. **⚠️ timeout**：`zot.download_pdf()` 必须传 `timeout=120`，否则卡死浪费 token。超时自动抛异常继续下篇。
-5. 验证：文件存在、> 100KB、`%PDF` 头。
+### 排查修复
 
-## Step 2b：排查修复
+**先查 `error_log.md`**。运行时错误（超时/导航）→ 检查 Chrome；页面结构变化 → 读 `references/maintain.md` 流程 A；"Access denied" 但有订阅 → 查 `error_log` 中 `check_access` 误报条目。
 
-**先查 `error_log.md`**，再用 `--debug` 重跑。根据错误判断：运行时错误（超时/导航）→ 检查 Chrome；页面结构变化 → 读 `references/maintain.md` 流程 A；"Access denied" 但有订阅 → 查 `error_log` 中 `check_access` 误报条目。
-
-## Step 2c：添加新出版商
+### 添加新出版商
 
 1. 读 `references/maintain.md` **流程 B** 完整执行
 2. 必须用 Playwright CDP 探测页面，不能只靠 DevTools
-3. 创建适配器后注册到 `main.py` + `url_parser.py`
+3. 创建适配器后注册到 `download/adapters/__init__.py` + `url_parser.py`
 4. **常见 bug**：`find_download_url(self, page)` 签名不能多参数；OA 出版商必须覆盖 `check_access()` 返回 `True`（JCI Insight、bioRxiv）；`url_parser.py` 正则用 `\\.` 转义 dot
 
-## Step 2d：人物处理
+## Step 3：人机合作流程（大型学者）
 
-【新推荐】`zotero_attach.py` — 独立模块，读 Zotero 文件夹补缺失 PDF（人机合作流程 Phase 3）
+推荐的 `-people` 工作方式——**分阶段执行，人在中间清洗数据**：
 
-```bash
-# 直接使用
-python "<skill-base>/zotero_attach.py" --collection "学者名"
-python "<skill-base>/zotero_attach.py" --collection "学者名" --max-papers 5
-
-# 也支持通过 people.py 调用（薄封装）
-python "<skill-base>/people.py" --attach-missing --scholar-name "学者名"
-```
-
-详见下方「人机合作推荐流程」。
-
-1. Agent：`--scrape-only` → 抓取 Scholar profile
-2. Agent：`--register-only` → 批量注册到 Zotero（纯 CrossRef 元数据，~0.7s/篇，不下载 PDF）
-3. **你**：在 Zotero 中清洗数据（删不相关、修元数据、去重、补遗漏）
-4. Agent：`--attach-missing --scholar-name "学者名"` → 读取 Zotero 文件夹，下载并挂载缺 PDF 的条目
-5. Agent：`--template-only --scholar-name "学者名"` → 生成消化模板
-
-详见 `references/people-guide.md`「人机合作推荐流程」。
-
-CLI 速查：
-```bash
-# 人机合作流程
-python "<skill-base>/people.py" "SCHOLAR_URL" --scrape-only      # 1. 抓取
-python "<skill-base>/people.py" --register-only --scholar-name "X"  # 2. 注册
-# → 你清洗 Zotero →
-python "<skill-base>/people.py" --attach-missing --scholar-name "X"  # 4. 补PDF
-python "<skill-base>/people.py" --template-only --scholar-name "X"   # 5. 消化
-
-# 旧版全自动（Scholar 干净时可用）
-python "<skill-base>/people.py" "SCHOLAR_URL" --download         # 全套
-python "<skill-base>/people.py" --download-only --scholar-name "X"  # 断点续传
-python "<skill-base>/people.py" --retry --scholar-name "X"         # 重试
-python "<skill-base>/people.py" --template-only --scholar-name "X"   # 仅模板
-```
-
-## Step 3：全套工作流（`-paper`）
-
-**前提**：`config.yaml` 的 `zotero` 部分已配置。
+### Phase 1：Agent 自动 — 建文件夹 + 注册条目
 
 ```bash
-set PYTHONIOENCODING=utf-8 && python "<skill-base>/zot.py" "URL"
+python -m lit scholar "SCHOLAR_URL"
+# 或分两步：
+python -m lit scholar "URL" --scrape-only    # 仅抓取
+python -m lit scholar "URL"                   # 抓取 + 注册
 ```
 
-自动：去重检查 → 元数据提取 → PDF 下载 → 创建 Zotero 条目 → 挂载 PDF。即使 PDF 下载失败也会先建条目。成功后输出 `ZOT_RESULT: zot_key=...|att_key=...|local_pdf=...|title=...`。从输出中提 DOI 走 Step 6 生成 QR 码。
+### 步骤 2：你手动清洗数据
 
-## Step 4：仅 Zotero（`-zot`）
+在 Zotero `People/<学者名>` 文件夹中修元数据、删不相关、去重、补遗漏。
+
+### Phase 3：Agent 继续 — 补 PDF + 消化
 
 ```bash
-set PYTHONIOENCODING=utf-8 && python "<skill-base>/zot.py" --no-download "URL"
+python -m lit attach "学者名"              # 批量补缺 PDF
+python -m lit attach "学者名" --limit 5   # 先测5篇
+python -m lit digest "学者名"               # 生成消化报告
 ```
 
-输出：`ZOT_RESULT: zot_key=...|title=...`
+### 为什么不一把走完？
 
-**故障排查**：`config.yaml not found` → 检查文件；`zotero.{key} not configured` → 填入 API key 和 library ID；`403 Write access denied` → API key 需要写权限。
+Scholar 数据很脏（截断作者名、专利/会议混入、重复），人机合作把清洗放中间，agent 只负责机械重复的工作。
 
-## Step 5：图片引用提取
-
-**前提**：DeepSeek Vision API 在 `http://127.0.0.1:3000` 运行。
+## Step 4：旧版命令（兼容）
 
 ```bash
-set PYTHONIOENCODING=utf-8 && python "<skill-base>/ocr_citation.py" "<图片路径>" --json
+# 旧版入口仍可用，但会打印弃用警告
+PYTHONIOENCODING=utf-8 python "main.py" "URL"           # 下载
+PYTHONIOENCODING=utf-8 python "zot.py" "URL"            # Zotero
+PYTHONIOENCODING=utf-8 python "people.py" "URL"         # 学者
+PYTHONIOENCODING=utf-8 python "pdf_parser.py" "path"    # 解析
 ```
 
-自动：DeepSeek Vision OCR → 解析引用 → CrossRef 确认 DOI。拿到 DOI 后根据用户意图走 Step 2a/3/4。多张图分别跑后统一处理。
+## 支持的出版商（25 家）
 
-## Step 6：生成 QR 码（`-qr`）
-
-```bash
-set PYTHONIOENCODING=utf-8 && python "<skill-base>/generate_qr.py" "<DOI>"
-```
-
-输出：`<skill-base>/download/temp/<DOI_slug>.png`。DOI 格式自动处理（`10.xxx/yyy` 或 `https://doi.org/...` 均可）。
-
-## Step 7：查找并发送 PDF（`-pdf`）
-
-搜索 `C:\Users\Ivanz\Downloads\temp` 和 `<skill-base>/download/`，找到后通过 `MEDIA:<绝对路径>` 发送。支持多行 `MEDIA:`。QQ 平台不支持 MEDIA 文件发送。
-
-## Step 8：填充文献消化模板
-
-Phase 4 生成模板后，由 agent 手动填充。详细方法论见 `references/digest-workflow.md`。
-
-**核心要点**：
-- 作者名缩写**绝对不能脑补展开**（曾踩坑：KMC Wong→Kenneth MC Wong，实为Keith Man-Chung Wong）
-- 解析优先级：CrossRef 查询 → 本地 `authors_db.json` → dirty 保留缩写
-- 4 Block 非线性填充，用三圈螺旋工作流（鸟瞰→深读→整合）
-- 跨 Block 关联打 ⚡ 标记，统一时间线
-
-## Step 9：PDF 结构化解析（`-parse`）
-
-**前提**：`config.yaml` 的 `mineru.token` 已填入（从 https://mineru.net/apiManage 获取）。
-
-```bash
-# 单篇解析 → stdout
-set PYTHONIOENCODING=utf-8 && python "<skill-base>/pdf_parser.py" "<pdf_path>"
-
-# 指定输出文件
-python "<skill-base>/pdf_parser.py" "<pdf_path>" -o "<output.md>"
-
-# 批量解析（模块调用）
-# from pdf_parser import parse_pdf_batch
-# results = parse_pdf_batch(["paper1.pdf", "paper2.pdf"])
-```
-
-输出：高质量 Markdown，保留表格结构、公式、阅读顺序、图表标注。结果按文件 SHA256 缓存在 `<skill-base>/cache/mineru/`，重复解析同文件直接返回缓存。
-
-**用途**：digest 工作流的"深读"阶段——用解析后的 Markdown 替代人眼读 PDF，提取 methods/results 细节。不用于 abstract/元数据提取（那是 CrossRef + 页面 DOM 的任务）。
-
-**API 配额**：免费 5000 页/天，单文件 ≤200 页/200MB。VLM 模型精度最高，pipeline 模型更快。
-
-# 支持的出版商（25 家）
-
-| 出版商 | 域名示例 |
-|--------|---------|
+| 出版商 | 域名 |
+|--------|------|
 | AAAS (Science) | science.org |
 | ACS Publications | pubs.acs.org |
 | AIP (Silverchair) | pubs.aip.org |
@@ -204,8 +133,20 @@ python "<skill-base>/pdf_parser.py" "<pdf_path>" -o "<output.md>"
 | Optica (OSA) | opg.optica.org |
 | PNAS | pnas.org |
 | Royal Society | royalsocietypublishing.org |
-| RSC (Royal Society of Chemistry) | pubs.rsc.org |
+| RSC | pubs.rsc.org |
 | SPIE | spiedigitallibrary.org |
 | Springer / SpringerLink | springer.com, link.springer.com |
 | Taylor & Francis | tandfonline.com |
 | Wiley | onlinelibrary.wiley.com |
+
+## 参考文档
+
+| 文档 | 内容 |
+|------|------|
+| `references/architecture.md` | 代码架构、核心机制、适配器详解 |
+| `references/maintain.md` | 添加/修复 publisher 流程模板 |
+| `references/people-guide.md` | 人机合作流程详细说明 |
+| `references/digest-workflow.md` | 消化模板填充方法论 |
+| `references/webdav-setup.md` | WebDAV 配置说明 |
+| `references/mineru-api.md` | MinerU PDF 解析 API 说明 |
+| `references/merge-notes.md` | 合并/PR 记录 |

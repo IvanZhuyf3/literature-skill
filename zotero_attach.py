@@ -227,6 +227,12 @@ def attach_missing_pdfs(collection_name: str, cfg: dict,
 # ---------------------------------------------------------------------------
 
 def main():
+    """[DEPRECATED] Use ``lit attach`` instead. See ``lit --help``."""
+    import warnings
+    warnings.warn(
+        "zotero_attach.py is deprecated. Use 'lit attach <collection>' instead. See 'lit --help'.",
+        DeprecationWarning, stacklevel=2
+    )
     import argparse
     parser = argparse.ArgumentParser(
         description="zotero_attach: Batch-attach PDFs to Zotero collection items",

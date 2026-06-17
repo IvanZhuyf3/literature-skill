@@ -1479,6 +1479,12 @@ def attach_missing_pdfs(scholar_name: str, cfg: dict,
 
 
 def main():
+    """[DEPRECATED] Use ``lit scholar`` / ``lit attach`` / ``lit digest`` instead. See ``lit --help``."""
+    import warnings
+    warnings.warn(
+        "people.py is deprecated. Use 'lit scholar/attach/digest' instead. See 'lit --help'.",
+        DeprecationWarning, stacklevel=2
+    )
     import argparse
 
     parser = argparse.ArgumentParser(

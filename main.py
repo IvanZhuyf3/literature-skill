@@ -331,6 +331,12 @@ def sanitize_filename(name: str, max_length: int = 100) -> str:
 # ---------------------------------------------------------------------------
 
 def main():
+    """[DEPRECATED] Use ``lit download`` instead. See ``lit --help``."""
+    import warnings
+    warnings.warn(
+        "main.py is deprecated. Use 'lit download <DOI/URL>' instead. See 'lit --help'.",
+        DeprecationWarning, stacklevel=2
+    )
     parser = argparse.ArgumentParser(
         description="Paper-at-Home: 学术论文自动下载工具",
         formatter_class=argparse.RawDescriptionHelpFormatter,

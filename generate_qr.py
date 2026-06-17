@@ -70,6 +70,12 @@ def generate_qr(doi: str, output_dir: str) -> str:
 
 
 def main():
+    """[DEPRECATED] Use ``lit qr`` instead. See ``lit --help``."""
+    import warnings
+    warnings.warn(
+        "generate_qr.py is deprecated. Use 'lit qr <doi>' instead. See 'lit --help'.",
+        DeprecationWarning, stacklevel=2
+    )
     parser = argparse.ArgumentParser(description="Generate QR code from DOI")
     parser.add_argument("doi", help="DOI string (e.g. 10.1039/d1an00412c)")
     parser.add_argument(

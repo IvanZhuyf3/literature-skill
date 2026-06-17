@@ -11,13 +11,10 @@
 | 完整流程（抓取+DOI+下载+模板） | `python <skill-base>/people.py "SCHOLAR_URL" --download` |
 | 仅抓取测试 | `python <skill-base>/people.py "SCHOLAR_URL" --scrape-only` |
 | 批量注册 Zotero（不下载 PDF） | `python <skill-base>/people.py --register-only --scholar-name "学者名"` |
-| 断点续传下载 | `python <skill-base>/people.py --download-only --scholar-name "学者名"` |
-| Cron 每 10min 下 1 篇 | `python <skill-base>/people.py --download-only --scholar-name "学者名" --max-papers 1` |
-| 仅生成消化模板 | `python <skill-base>/people.py --template-only --scholar-name "学者名"` |
+| **补缺PDF（人机合作）** | `python -m lit attach "学者名"` |
+| 生成消化报告 | `python -m lit digest "学者名"` |
 | 限制篇数测试 | `python <skill-base>/people.py "URL" --scrape-only --max-papers 5` |
-| 第二轮重试（失败论文） | `python <skill-base>/people.py --retry --scholar-name "学者名"` |
-| **补缺PDF（人机合作）** | `python <skill-base>/zotero_attach.py --collection "学者名"` |
-| 也支持 people.py 封装 | `python <skill-base>/people.py --attach-missing --scholar-name "学者名"` |
+| 旧版补缺 PDF | `python -m lit attach "学者名"` |
 
 ## 处理流程
 
@@ -59,12 +56,10 @@ python people.py --register-only --scholar-name "学者名"
 
 ```bash
 # 3a. 读取 Zotero 文件夹，下载并挂载缺 PDF 的条目
-python <skill-base>/zotero_attach.py --collection "学者名"
-# 或者通过 people.py（薄封装）
-python <skill-base>/people.py --attach-missing --scholar-name "学者名"
+python -m lit attach "学者名"
 
 # 3b. 生成消化模板
-python <skill-base>/people.py --template-only --scholar-name "学者名"
+python -m lit digest "学者名"
 ```
 
 代码行为：
