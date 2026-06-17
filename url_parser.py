@@ -33,6 +33,7 @@ PUBLISHER_PATTERNS = {
     "elsevier": [
         r"sciencedirect\.com",
         r"elsevier\.com",
+        r"linkinghub\.elsevier\.com",
     ],
     "npg": [
         r"nature\.com",
@@ -186,7 +187,12 @@ def parse_input(input_str: str) -> tuple[Optional[str], Optional[str]]:
         if url is None:
             return None, None
     elif input_str.startswith(("http://", "https://")):
-        url = input_str
+        # Resolve doi.org URLs to get actual publisher URL for detection
+        if "doi.org/" in input_str.lower():
+            resolved = resolve_doi(input_str)
+            url = resolved if resolved else input_str
+        else:
+            url = input_str
     else:
         # 尝试作为 DOI
         url = resolve_doi(input_str)

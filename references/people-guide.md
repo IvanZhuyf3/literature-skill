@@ -6,15 +6,14 @@
 
 ## CLI 命令速查
 
-| 模式 | 命令 |
-|------|------|
-| 完整流程（抓取+DOI+下载+模板） | `python <skill-base>/people.py "SCHOLAR_URL" --download` |
-| 仅抓取测试 | `python <skill-base>/people.py "SCHOLAR_URL" --scrape-only` |
-| 批量注册 Zotero（不下载 PDF） | `python <skill-base>/people.py --register-only --scholar-name "学者名"` |
-| **补缺PDF（人机合作）** | `python -m lit attach "学者名"` |
-| 生成消化报告 | `python -m lit digest "学者名"` |
-| 限制篇数测试 | `python <skill-base>/people.py "URL" --scrape-only --max-papers 5` |
-| 旧版补缺 PDF | `python -m lit attach "学者名"` |
+| 模式 | 推荐命令 | 旧版兼容 |
+|------|---------|---------|
+| 完整流程（抓取+DOI+下载+模板） | `lit scholar <URL>` | `python people.py "URL" --download` |
+| 仅抓取测试 | `lit scholar <URL> --scrape-only` | `python people.py "URL" --scrape-only` |
+| 批量注册 Zotero（不下载 PDF） | `lit scholar <URL>` | `python people.py --register-only --scholar-name "学者名"` |
+| **补缺PDF（人机合作）** | `lit attach <collection>` | `python -m lit attach "学者名"` |
+| 生成消化报告 | `lit digest <collection>` | `python -m lit digest "学者名"` |
+| 限制篇数测试 | `lit scholar <URL> --max-papers 5` | `python people.py "URL" --scrape-only --max-papers 5` |
 
 ## 处理流程
 
@@ -33,10 +32,10 @@
 ### Phase 1：Agent 自动 — 建文件夹 + 注册条目
 
 ```bash
-# 1a. 抓取 Scholar Profile
-python people.py "SCHOLAR_URL" --scrape-only
-# 1b. DOI 匹配 + 注册到 Zotero
-python people.py --register-only --scholar-name "学者名"
+# 1a. 抓取 Scholar Profile（可选，lit scholar 内置抓取）
+lit scholar "SCHOLAR_URL" --scrape-only
+# 1b. 抓取 + DOI 匹配 + 注册到 Zotero
+lit scholar "SCHOLAR_URL"
 ```
 
 结果：Zotero 里 `People/<学者名>` 文件夹建好，每篇有 CrossRef 元数据（标题、作者、DOI、年份），**无 PDF 附件**。
@@ -56,10 +55,10 @@ python people.py --register-only --scholar-name "学者名"
 
 ```bash
 # 3a. 读取 Zotero 文件夹，下载并挂载缺 PDF 的条目
-python -m lit attach "学者名"
+lit attach "学者名"
 
 # 3b. 生成消化模板
-python -m lit digest "学者名"
+lit digest "学者名"
 ```
 
 代码行为：
@@ -74,25 +73,21 @@ Scholar 抓取的数据很脏（截断作者名、专利/会议混入、preprint
 
 ## 批量下载策略
 
-默认关闭（`--download` 显式启用）。建议 cron 线性下载（10-15min/篇），用 `--download-only` 做断点续传。一次性大量下载会触发出版商 access 封禁。
+默认关闭（`lit scholar` 不含下载）。建议 cron 线性下载（10-15min/篇），用 `lit attach` 做断点续传（从 Zotero 读状态）。一次性大量下载会触发出版商 access 封禁。
 
 ## 关键陷阱
 
-1. **`subprocess.run()` 必须加 timeout**。`zot.download_pdf()` 传 `timeout=120`，超时后 `raise RuntimeError`，`download_one_paper` 捕获后标记 `dl_status=failed` 继续下篇。
+1. **`subprocess.run()` 必须加 timeout**。`lit/download/engine.py` 的 `download_pdf()` 传 `timeout=120`，超时后 `raise RuntimeError`，`lit/batch/attach.py` 捕获后标记失败继续下篇。
 
 2. **每篇下载后必须保存进度**（`download_batch` 的 `save_callback` 参数）。不保存 → 进程被 kill 后全部重来。调用方传 `save_callback=lambda papers: save_papers(...)`，每篇后自动 JSON 落盘。重跑时 `resume=True` 跳过 `dl_status=success` 的篇。
 
-3. **`--no-warmup` 加速**：单篇下载加 `--no-warmup` 跳过 Chromium 热身（节省 ~15s/篇）。批量场景下 Chromium 已稳定，warmup 多余。`zot.py` 的 `download_pdf()` 调用 `main.py` 时默认带 warmup，可改 cmd 加 `--no-warmup` 提速。
+3. **`lit download` 自动跳过 warmup**：`lit/download/engine.py` 的 `download_pdf()` 默认不带 warmup（Chromium 已在手动模式下运行）。批量场景使用 `lit attach` 自动处理。
 
 4. **DOI 解析失败（RSC `RemoteDisconnected`）**：`resolve_doi()` 用 `requests.head()` → RSC 拒绝 HEAD 连接。已在 `url_parser.py` 改为 `requests.get()` + 浏览器 UA header。新增出版商类似问题先查 `resolve_doi()` 是否用 HEAD。
 
-5. **Scholar 截断作者 `...` 破坏 Zotero API**：Scholar 抓取的 `authors` 字符串结尾有 `, ...`，`add_to_zotero()` 会创建 `lastName="..."` 的 creator，Zotero API 400。修复：`download_one_paper` 过滤 `[a for a in raw if a and a != "..." and len(a) > 1]`。
+5. **Scholar 截断作者 `...` 破坏 Zotero API**：Scholar 抓取的 `authors` 字符串结尾有 `, ...`，`create_item()` 会创建 `lastName="..."` 的 creator，Zotero API 400。修复：`lit/discover/scholar.py` 中过滤 `[a for a in raw if a and a != "..." and len(a) > 1]`。
 
-6. **第二轮重试 `--retry`**：加载已有 papers.json，对第一轮失败的论文自动分类处理：
-   - SPIE 会议（DOI `10.1117/12.`）→ 标记 `conference` 不再重试
-   - 超时失败 → 用 180s timeout 重试
-   - "did not produce PDF" → 重试（可能因新适配器已就绪而成功）
-   - 每篇重试后自动保存进度
+6. **`lit attach` 天然支持重试**：`lit attach` 直接从 Zotero collection 读状态（有 DOI + 无 PDF → 需要下载），每次运行相当于自动检测哪些篇缺 PDF。不需要手动 `--retry` 标记。
 
 7. **配置 path 注意**：`config.yaml` 被 gitignore，clone 后需手动修正 `temp_dir` 和 `storage_path` 中的用户名。
 
@@ -112,17 +107,18 @@ Scholar 抓取的数据很脏（截断作者名、专利/会议混入、preprint
 - Scholar Profile 页面渲染需要 3-5 秒，`page_delay: 3000` 足够
 - 每页 20 条，`Show More` 按钮 disabled 时全部加载完毕
 - 论文从旧到新排序（年序）
-- 下载前确保 Edge/Chrome 已启动（`chromium_helper.launch_browser()`）
+- 下载前确保 Edge 已启动（`--remote-debugging-port=19222`）
 
 ## 故障排查
 
 | 问题 | 原因 | 解决 |
 |------|------|------|
 | DOI resolve 失败（如 RSC `RemoteDisconnected`） | 部分出版商（RSC）拒绝 `requests.head()` | 已在 `url_parser.py` 修复为 `GET` + 浏览器 UA |
-| Zotero API `'firstName' field must be set` | Scholar 截断作者 `...` 传入 `add_to_zotero()` | `people.py` 的 `download_one_paper()` 已自动过滤 |
-| 论文抓取后数量不对 | `CONFERENCE_KEYWORDS` 漏了该会议 | 在 `people.py` 的 `CONFERENCE_KEYWORDS` 列表追加 |
+| Zotero API `'firstName' field must be set` | Scholar 截断作者 `...` 传入 `create_item()` | `lit/discover/scholar.py` 已自动过滤 |
+| 论文抓取后数量不对 | `CONFERENCE_KEYWORDS` 漏了该会议 | 在 `lit/discover/scholar.py` 的 `CONFERENCE_KEYWORDS` 列表追加 |
 | `config.yaml` 路径不匹配 | gitclone 后路径中的用户名不同 | 手动修正 `temp_dir` 和 `storage_path` |
-| CDP 连接失败 | Edge 未启动或端口不对 | 先运行 `chromium_helper.launch_browser()` 或手动 `start_browser.bat` |
-| 批量下载永远跑不完（进程挂起） | `subprocess.run()` 无 timeout | 已在 `zot.download_pdf()` 加 `timeout=120` 参数 |
-| PDF 下载失败率高 | 部分出版商无适配器或页面结构变化 | 查看本指南的「已知不支持/易失败的出版商」 |
-| 批量下载有失败项 | 部分出版商超时或无订阅 | 用 `--retry` 启动第二轮重试 |
+| CDP 连接失败 | Edge 未启动或端口不对 | 先手动启动 Edge（`--remote-debugging-port=19222`）|
+| 批量下载永远跑不完（进程挂起） | `subprocess.run()` 无 timeout | 已在 `lit/download/engine.py` 加 `timeout=120` |
+| PDF 下载失败率高 | 部分出版商无适配器或页面结构变化 | 查看 `references/architecture.md` 的「已知限制」|
+| 附件在另一台电脑上显示空壳 | `imported_file` 路径是绝对路径，不跨机器 | 查看 `references/storage-file-gap.md` |
+| 批量下载有失败项 | 部分出版商超时或无订阅 | 重跑 `lit attach` 会自动处理失败的篇 |

@@ -1,61 +1,104 @@
-# Paper-at-Home — 项目知识文档
+# Literature Skill — 项目知识文档
 
 ## 项目概述
 
-学术论文自动下载工具。通过 Playwright CDP 连接 Chromium 浏览器（可手动启动或自动启动），从 DOM 提取 PDF 链接，用页面上下文 `fetch()` 下载原始 PDF 字节，绕过出版商反爬检测。
+学术论文自动下载 + Zotero 管理工具。核心功能：
+- **发现**：从 Google Scholar 抓取学者论文列表，CrossRef 匹配 DOI，注册到 Zotero
+- **下载**：通过 Playwright CDP 连接 Chromium 浏览器，绕过出版商反爬检测下载 PDF
+- **挂载**：WebDAV 方式将 PDF 附到 Zotero 条目（不消耗云配额）
+- **消化**：读 Zotero 数据生成结构化文献消化报告
 
-## 架构
+## 架构概览
 
 ```
-Chromium 启动（两种方式，main.py 自动处理）:
-  A) 用户手动启动 (--remote-debugging-port=9222，已登录机构账号) ← 推荐
-  B) main.py 自动启动 (临时 profile，无登录状态，访问需订阅的论文会失败)
-    ↓
-main.py → ChromiumHelper.connect() → Playwright connect_over_cdp()
-    │  连接失败时自动 fallback: launch_browser() + 轮询重连 (最多 15s)
-    ↓
-url_parser: 解析 URL/DOI → 识别出版商
-    ↓
-publisher/acs.py, publisher/optica.py, publisher/aaas.py, publisher/npg.py, publisher/springer.py: 从 DOM 提取 PDF 链接
-    ↓
-download_monitor.py: page.evaluate(fetch()) 下载 PDF（绕过 PDF 查看器 + TLS 检测）
-    ↓
-按论文标题重命名文件
+lit/                              ← python -m lit <command> （主入口）
+├── cli.py                        ← argparse 调度（8 子命令）
+├── core/
+│   ├── config.py                 ← 配置单例（取代各模块各自 load_config）
+│   ├── crossref.py               ← CrossRef DOI 解析 + 元数据查询
+│   └── zotero.py                 ← Zotero API 封装（Collection / Item / Attachment）
+├── discover/
+│   ├── scholar.py                ← Scholar 抓取 → 直接建 Zotero 条目
+│   └── cite.py                   ← 单篇 DOI/URL/图片 → 注册 Zotero
+├── download/
+│   ├── engine.py                 ← CDP 下载引擎（导入 publisher/ 适配器）
+│   └── attacher.py               ← PDF 挂载封装
+├── batch/
+│   ├── attach.py                 ← 读 Zotero collection → 批量补 PDF
+│   └── register.py               ← 批量注册条目
+└── digest/
+    ├── template.py               ← 读 Zotero → 生成 4-Block 消化模板
+    └── parser.py                 ← MinerU PDF → Markdown 解析
+
+publisher/                        ← 25 家出版商适配器（被 download/engine.py 导入）
+├── base.py                       ← PublisherAdapter 抽象基类
+├── acs.py, npg.py, elsevier.py, ...  ← 各出版商适配器
+
+# 旧版入口（弃用但保留兼容，详见 references/legacy.md）
+main.py, zot.py, people.py, chromium_helper.py, url_parser.py, ...
 ```
 
-## 文件职责
+## 模块职责
 
-| 文件 | 职责 |
+| 模块 | 职责 |
 |------|------|
-| `main.py` | CLI 入口，完整工作流编排 |
-| `chromium_helper.py` | Chromium 启动/CDP 连接/暖场页面 |
-| `click_engine.py` | 坐标转换 + pyautogui 人类式点击（备用，当前未使用） |
-| `download_monitor.py` | `page.evaluate(fetch())` PDF 下载（主方案） + 目录监控 fallback |
-| `rate_limiter.py` | 延迟控制（60-180s）、模拟阅读、session 限制 |
-| `url_parser.py` | URL/DOI 解析、出版商自动识别 |
-| `publisher/base.py` | 适配器抽象基类 (PublisherAdapter) |
-| `publisher/acs.py` | ACS Publications 适配器 |
-| `publisher/optica.py` | Optica Publishing Group 适配器 |
-| `publisher/aaas.py` | AAAS (Science) 适配器 |
-| `publisher/npg.py` | Nature Publishing Group 适配器 |
-| `publisher/springer.py` | Springer (link.springer.com) 适配器 |
-| `publisher/aip.py` | AIP (Silverchair 平台) 适配器 |
-| `publisher/elsevier.py` | Elsevier ScienceDirect 适配器 (Ctrl+P 打印下载) |
-| `publisher/pnas.py` | PNAS (Proceedings of the National Academy of Sciences) 适配器 |
-| `publisher/wiley.py` | Wiley Online Library 适配器 (epdf → pdfdirect) |
-| `publisher/aps.py` | APS (Physical Review系列) 适配器 |
-| `publisher/tandf.py` | Taylor & Francis (tandfonline.com) 适配器 |
-| `publisher/rsc.py` | RSC (Royal Society of Chemistry) 适配器 |
-| `publisher/iop.py` | IOP (Institute of Physics, IOPscience) 适配器 |
-| `publisher/annualreviews.py` | Annual Reviews 适配器 |
-| `publisher/mdpi.py` | MDPI 适配器 |
-| `publisher/frontiers.py` | Frontiers 适配器 |
-| `publisher/elife.py` | eLife 适配器 |
-| `publisher/royalsociety.py` | Royal Society 适配器 (Silverchair CDN 跨域) |
-| `publisher/bmj.py` | BMJ 适配器 |
-| `publisher/ieee.py` | IEEE Xplore 适配器 (getPDF.jsp 构造) |
-| `publisher/spie.py` | SPIE Digital Library 适配器 |
-| `config.yaml` | 所有可调参数 |
+| `lit/cli.py` | argparse 调度入口，8 子命令映射到各模块 |
+| `lit/core/config.py` | 配置加载（单例），自动从 `lit/` 父目录找 `config.yaml` |
+| `lit/core/crossref.py` | CrossRef REST API：按标题搜索、按 DOI 获取元数据 |
+| `lit/core/zotero.py` | Zotero API 封装：集合 CRUD、条目创建/去重/删除、附件挂载 |
+| `lit/discover/scholar.py` | Playwright CDP 抓取 Scholar Profile → 过滤专利/会议 → CrossRef DOI 匹配 → Zotero 注册 |
+| `lit/discover/cite.py` | 单篇论文入口：DOI/URL 查 CrossRef 建条目，或图片 OCR 提取引用 |
+| `lit/download/engine.py` | PDF 下载引擎：DOI→URL→出版商识别→CDP 连接→适配器分发→fetch()/打印下载→验证 |
+| `lit/download/attacher.py` | 薄封装：下载 + 调用 `core.zotero` 挂载附件 |
+| `lit/batch/attach.py` | 读 Zotero collection 找出无 PDF 条目 → 逐篇下载 + 挂载 |
+| `lit/batch/register.py` | 批量用 CrossRef 元数据注册条目到 Zotero（无 PDF） |
+| `lit/digest/template.py` | 读 Zotero collection → 生成 4-Block 消化模板 Markdown |
+| `lit/digest/parser.py` | MinerU 在线 API PDF→Markdown 解析 |
+
+### 旧版入口（保留兼容，路径见 `references/legacy.md`）
+
+| 文件 | 状态 | 用途 |
+|------|------|------|
+| `main.py` | 弃用 | `lit/download/engine.py` 的 fallback 子进程 |
+| `zot.py` | 弃用 | 旧版 Zotero 完整工作流 |
+| `people.py` | 弃用 | 旧版学者批量处理 |
+| `chromium_helper.py` | 弃用 | Chromium 启动/CDP 连接（`lit/download/engine.py` 导入） |
+| `url_parser.py` | 弃用 | URL/DOI 解析（被 `lit/download/engine.py` 导入） |
+| `publisher/` | **活跃** | 25 家适配器，**仍被 `lit/download/engine.py` 导入使用** |
+
+## 数据流转
+
+### Scholar → Zotero 注册路径
+```
+Google Scholar (Playwright CDP)
+    → 抓取论文列表（标题、作者、年份、引用数）
+    → 过滤专利/会议/重复
+    → CrossRef 搜索标题匹配 DOI
+    → Zotero API 创建 People/<学者名> 集合
+    → 逐篇创建条目（含 DOI、作者、年份等元数据）
+    → 无 PDF 附件
+```
+
+### PDF 下载路径
+```
+DOI/URL
+    → url_parser 识别出版商
+    → Chromium CDP 连接（手动启动，有机构登录）
+    → publisher/<name>.py 适配器：navigate → check_access → metadata → find_download_url
+    → 路径 A：page.evaluate(fetch(pdf_url)) 返回 PDF 字节（大部分出版商）
+    → 路径 B：Ctrl+P 打印为 PDF（Elsevier ScienceDirect）
+    → 验证：文件存在、>100KB、%PDF 头
+    → 按论文标题重命名
+```
+
+### Zotero 附件挂载
+```
+PDF 下载完成
+    → 检查 Zotero 条目是否存在（按 DOI 查重）
+    → 已有条目：创建 attachment + 拷文件到 storage/{att_key}/
+    → 无条目：先创建条目再 attach
+    → sync_method = webdav（不消耗云配额）
+```
 
 ## 核心下载机制：`page.evaluate(fetch())`
 
@@ -226,7 +269,7 @@ id     = 591237  (pdfKey 下划线后的数字)
 2. `a:has-text("View PDF")` 匹配当前 PII（fallback）
 
 **特殊标记：**
-- `use_click_download = True`：通知 main.py 不走 fetch() 流程
+- `use_click_download = True`：通知 engine 不走 fetch() 流程
 - `resolve_pdf_url()` 返回 `"__click_download__"`：触发 click_download 路径
 - `_print_start_time`：Ctrl+P 前的时间戳，用于按 mtime 查找文件
 
@@ -501,28 +544,13 @@ class PublisherAdapter(ABC):
 
 ## 添加新出版商
 
-1. 在 `publisher/` 下创建新文件，继承 `PublisherAdapter`
-2. 实现 `detect()`、`find_download_element()`
+1. 在 `publisher/` 下创建新文件，继承 `PublisherAdapter`（模板见 `references/maintain.md` 流程 B）
+2. 实现 `detect()`、`find_download_element()`、`navigate_to_paper()`、`get_paper_metadata()`
 3. 如果出版商有 JS 挑战/重定向链，实现 `resolve_pdf_url()`
-4. 在 `main.py` 的 `get_adapter()` 中注册
-5. 在 `url_parser.py` 的 `PUBLISHER_PATTERNS` 中添加 URL 模式
+4. 在 `url_parser.py` 的 `PUBLISHER_PATTERNS` 中添加 URL 模式
+5. 在 `lit/download/adapters/__init__.py` 中注册
 6. 在 `config.yaml` 的 `publishers` 下添加选择器配置
-
-## main.py 下载流程
-
-```
-navigate_to_paper → check_access → get_paper_metadata → simulate_reading
-  → find_download_url → [resolve_pdf_url 如果有] → navigate_back
-  → [若 use_click_download: click + Ctrl+P 打印] → [否则: pre_click_delay → fetch() download]
-  → save → rename → cleanup_tabs
-```
-
-**特殊路径：**
-- `__click_download__`：Elsevier 返回此标记触发 click_download 流程（Ctrl+P 打印）
-
-## Tab Cleanup
-
-After each download, `browser_helper.cleanup_tabs(browser)` closes all tabs except one and navigates it to `about:blank`. This prevents stale PDF viewer tabs from accumulating and causing subsequent downloads to hang.
+7. 在 `SKILL.md` 和 `references/architecture.md` 中更新出版商列表
 
 ## 已知限制
 
@@ -534,21 +562,27 @@ After each download, `browser_helper.cleanup_tabs(browser)` closes all tabs exce
 - pyautogui OS 级别操作需要 Chrome 窗口可见且在前台
 - Foxit Reader 打印的 PDF 是重新渲染的，非原始 PDF 字节
 
-## 构建/运行
+## 常用命令
 
-```bat
-:: 首次
-setup.bat
+```bash
+# Scholar → Zotero 注册（无 PDF）
+python -m lit scholar "GOOGLE_SCHOLAR_URL"
 
-:: 方式 A：手动启动 Chromium（推荐，有登录状态）
-start_browser.bat         :: 启动 Chromium (端口 9222)
-run.bat "DOI或URL"        :: 下载单篇（main.py 自动 CDP 连接）
+# 单篇加 Zotero
+python -m lit import "DOI_or_URL"
 
-:: 方式 B：让 main.py 自动启动（临时 profile，无登录状态）
-run.bat --launch-browser "DOI或URL"
+# 单篇下载 PDF（不入 Zotero）
+python -m lit download "DOI_or_URL"
 
-:: 批量下载
-run.bat --input urls.txt
+# 批量补 PDF（读 Zotero collection）
+python -m lit attach "Ji-Xin Cheng" --limit 5
+
+# 生成消化报告
+python -m lit digest "Ji-Xin Cheng"
+
+# MinerU 解析 PDF
+python -m lit parse "paper.pdf" -o "paper.md"
+
+# QR 码
+python -m lit qr "10.1038/s41566-026-01891-6"
 ```
-
-全部 global install，无 venv。可在另一 Chromium 窗口正常浏览，互不影响。

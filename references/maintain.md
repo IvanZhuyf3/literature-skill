@@ -114,7 +114,7 @@ asyncio.run(main())
 
 ### 3. 修复
 
-阅读 `ARCHITECTURE.md` 中对应 publisher 的章节，了解当前实现。
+阅读 `architecture.md` 中对应 publisher 的章节，了解当前实现。
 阅读 `publisher/<name>.py` 的 docstring 了解选择器和特殊处理。
 
 修改对应的 `publisher/<name>.py`。
@@ -253,8 +253,8 @@ class NewPublisherAdapter(PublisherAdapter):
 
 ### 4. 注册
 
-1. `main.py` — 添加 import + `get_adapter()` 字典中添加映射
-2. `url_parser.py` — `PUBLISHER_PATTERNS` 字典中添加 URL 匹配模式
+1. `url_parser.py` — `PUBLISHER_PATTERNS` 字典中添加 URL 匹配模式
+2. `lit/download/adapters/__init__.py` — 添加 import + 适配器类注册
 
 ### 5. 用真实 Chrome 测试
 
@@ -276,7 +276,7 @@ python main.py "<新publisher的论文URL>" --no-warmup --debug
 ### 7. 更新文档
 
 - 在 `publisher/<name>.py` 顶部 docstring 中记录下载流程和注意事项
-- 在 `ARCHITECTURE.md` 的出版商详解章节添加新条目
+- 在 `architecture.md` 的出版商详解章节添加新条目
 - 在 `SKILL.md` 的支持出版商表格添加新行
 - 在 `error_log.md` 中记录接入过程中遇到的问题和解决方案（编号：`E-<PUBLISHER>-<编号>`）
 
