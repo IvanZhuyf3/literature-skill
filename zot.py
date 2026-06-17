@@ -457,7 +457,7 @@ def attach_pdf(item_key: str, pdf_path: Path, cfg: dict) -> str:
         # File goes to {storage_path}/{att_key}/{filename}
         attachment_data = [{
             "itemType": "attachment",
-            "linkMode": 0,
+            "linkMode": "imported_file",
             "contentType": "application/pdf",
             "title": filename,
             "parentItem": item_key,
