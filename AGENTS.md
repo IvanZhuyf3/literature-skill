@@ -25,6 +25,12 @@ python -m lit import <DOI_or_URL_or_image_path> [--download]
 # 补缺 PDF（读 Zotero collection）
 python -m lit attach <collection_name> [--limit N]
 
+# 文件库体检与清理
+python -m lit maintain                          # 全库快速检查（孤儿目录 + ghost 条目）
+python -m lit maintain --collection "Ji-Xin Cheng"  # 含 per-item 附件健康度检查
+python -m lit maintain --fix                    # 执行修复（送回收站）
+python -m lit maintain --fix --dry-run          # 预览修复
+
 # 生成消化报告
 python -m lit digest <collection_name>
 

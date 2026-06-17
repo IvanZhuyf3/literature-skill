@@ -9,6 +9,7 @@ lit/cli.py — 单一 CLI 入口。
     lit download <DOI/URL>        仅下载 PDF（不入 Zotero）
     lit parse <pdf_path>          MinerU 解析 PDF → Markdown
     lit digest <collection>       生成消化报告
+    lit maintain [--collection X] [--fix] [--dry-run]  文件库健康检查与清理
     lit qr <DOI>                  生成 QR 码
 """
 from __future__ import annotations
@@ -57,6 +58,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--parent", default="People")
     p.add_argument("-o", "--output", help="自定义输出路径")
 
+    # ── maintain ──
+    p = sub.add_parser("maintain", help="Zotero 文件库健康检查与清理")
+    p.add_argument("--collection", default=None, help="仅检查某 collection (如 'Ji-Xin Cheng')")
+    p.add_argument("--fix", action="store_true", help="执行修复（删孤儿目录 + ghost 条目）")
+    p.add_argument("--dry-run", action="store_true", help="配合 --fix：只预览不执行")
+
     # ── qr ──
     p = sub.add_parser("qr", help="生成 DOI QR 码")
     p.add_argument("doi", help="DOI")
@@ -77,8 +84,9 @@ def main():
         run(args.source, download=args.download)
 
     elif args.command == "download":
-        from lit.download.engine import download_one
-        download_one(args.source)
+        from lit.download.engine import download_pdf
+        result = download_pdf(args.source)
+        print(f"PDF saved to: {result}")
 
     elif args.command == "attach":
         from lit.batch.attach import run
@@ -91,6 +99,10 @@ def main():
     elif args.command == "digest":
         from lit.digest.template import run
         run(args.collection, parent=args.parent, output=args.output)
+
+    elif args.command == "maintain":
+        from lit.maintain import run
+        run(collection=args.collection, fix=args.fix, dry_run=args.dry_run)
 
     elif args.command == "qr":
         sys.path.insert(0, str(Path(__file__).resolve().parent.parent))

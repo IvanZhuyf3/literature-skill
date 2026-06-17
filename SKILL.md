@@ -23,6 +23,7 @@ python -m lit import <image_path>     # 图片 OCR → 注册 Zotero
 python -m lit attach <collection>     # 读 Zotero → 批量补 PDF
 python -m lit digest <collection>     # 读 Zotero → 生成消化报告
 python -m lit download <DOI/URL>      # 仅下载 PDF（不入 Zotero）
+python -m lit maintain [--collection "Ji-Xin Cheng"] [--fix]  # 文件库健康检查与清理
 python -m lit parse <pdf_path>        # MinerU 解析 PDF → Markdown
 python -m lit qr <DOI>                # 生成 QR 码
 ```
@@ -54,6 +55,7 @@ python -m lit qr <DOI>                # 生成 QR 码
 | 生成消化报告 | `lit digest <collection>` | `people.py --template-only --scholar-name "X"` |
 | 单篇加 Zotero | `lit import <DOI/URL>` | `zot.py <URL>` |
 | 单篇下载 PDF | `lit download <DOI/URL>` | `main.py <URL>` |
+| 文件库体检/清理 | `lit maintain [--collection X] [--fix]` | 手动检查 |
 | 图片提取引用 | `lit import <image_path>` | `ocr_citation.py <image>` |
 | 生成 QR 码 | `lit qr <DOI>` | `generate_qr.py <DOI>` |
 | PDF 解析 | `lit parse <pdf_path>` | `pdf_parser.py <pdf_path>` |
