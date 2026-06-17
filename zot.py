@@ -428,48 +428,102 @@ def _parse_create_response(resp: dict) -> str:
 # ---------------------------------------------------------------------------
 
 def attach_pdf(item_key: str, pdf_path: Path, cfg: dict) -> str:
-    """Upload PDF via Zotero API (registers file info) and copy to local storage.
+    """Attach PDF to a Zotero item. Supports both API upload and local attachment.
 
-    Two-step approach:
-    1. attachment_simple() uploads to Zotero API — this registers md5/mtime/filesize
-       in Zotero's cloud metadata, so Zotero desktop knows a file exists.
-    2. Copy PDF to local Zotero storage — makes the file immediately available
-       without waiting for Zotero Cloud → WebDAV round-trip.
+    For WebDAV sync (config.sync_method='webdav'): creates attachment via REST API
+    (metadata only, no file upload), then copies PDF to local Zotero storage dir.
+    The Zotero desktop client detects the file and syncs via WebDAV.
 
-    Works with WebDAV sync: Zotero desktop sees registered file info + local file,
-    uploads to WebDAV on next sync.
+    For cloud sync (default): uploads via API multipart (registers md5/mtime/filesize
+    in Zotero cloud), then copies to local storage as fallback.
     """
     import shutil
+    import requests as req
     from pyzotero import zotero as zotero_mod
 
     zcfg = cfg["zotero"]
-    zot = zotero_mod.Zotero(zcfg["library_id"], zcfg.get("library_type", "user"), zcfg["api_key"])
-
-    # Step 1: Upload via API (registers file metadata: md5, mtime, filesize)
-    resp = zot.attachment_simple([str(pdf_path)], parentid=item_key)
-
-    if resp.get("success"):
-        att_key = str(resp["success"][0]["key"])
-    elif resp.get("unchanged"):
-        att_key = str(resp["unchanged"][0]["key"])
-    elif resp.get("failure"):
-        msg = resp["failure"][0].get("message", "Upload failed")
-        raise RuntimeError(f"Attachment upload failed: {msg}")
+    api_base = f"https://api.zotero.org/{zcfg.get('library_type', 'user')}s/{zcfg['library_id']}"
+    headers = {
+        "Zotero-API-Key": zcfg["api_key"],
+        "Content-Type": "application/json",
+    }
+    
+    filename = Path(str(pdf_path)).name
+    sync = cfg.get("zotero", {}).get("sync_method", "cloud")
+    
+    if sync == "webdav":
+        # ── WebDAV mode: create attachment via JSON API (no file upload) ──
+        # linkMode=0 (imported_file): Zotero-managed file in local storage dir
+        # File goes to {storage_path}/{att_key}/{filename}
+        attachment_data = [{
+            "itemType": "attachment",
+            "linkMode": 0,
+            "contentType": "application/pdf",
+            "title": filename,
+            "parentItem": item_key,
+        }]
+        resp = req.post(f"{api_base}/items", headers=headers, json=attachment_data)
+        
+        if resp.status_code != 200:
+            raise RuntimeError(f"Attachment creation failed: HTTP {resp.status_code} - {resp.text[:200]}")
+        
+        result = resp.json()
+        if result.get("failed"):
+            msg = result["failed"][0].get("message", "Unknown")
+            raise RuntimeError(f"Attachment creation failed: {msg}")
+        
+        att_key = result["successful"][0]["data"]["key"]
+        
+        # Copy PDF to local Zotero storage
+        storage_path = zcfg.get("storage_path", "")
+        if storage_path:
+            local_dir = Path(storage_path) / att_key
+            local_dir.mkdir(parents=True, exist_ok=True)
+            dest = local_dir / filename
+            shutil.copy2(str(pdf_path), str(dest))
+            console.print(f"[green]✓ PDF attached (WebDAV):[/green] {att_key} (local: {dest})")
+        else:
+            # No storage path configured, keep in place as linked file
+            console.print(f"[yellow]⚠ No zotero.storage_path set, linked file at: {pdf_path}[/yellow]")
+        
+        return att_key
+    
     else:
-        raise RuntimeError(f"Unexpected attachment response: {resp}")
+        # ── Cloud mode: upload via API multipart + copy to local storage ──
+        zot = zotero_mod.Zotero(zcfg["library_id"], zcfg.get("library_type", "user"), zcfg["api_key"])
+        try:
+            resp = zot.attachment_simple([str(pdf_path)], parentid=item_key)
+        except Exception as e:
+            err = str(e)
+            if "413" in err or "quota" in err.lower():
+                console.print(f"  [yellow]⚠ API upload failed (quota). Falling back to WebDAV mode...[/yellow]")
+                # Recurse with webdav mode
+                cfg["zotero"]["sync_method"] = "webdav"
+                return attach_pdf(item_key, pdf_path, cfg)
+            raise
 
-    # Step 2: Copy to local Zotero storage
-    storage_path = cfg.get("zotero", {}).get("storage_path", "")
-    if storage_path:
-        local_dir = Path(storage_path) / att_key
-        local_dir.mkdir(parents=True, exist_ok=True)
-        dest = local_dir / Path(pdf_path).name
-        shutil.copy2(str(pdf_path), str(dest))
-        console.print(f"[green]✓ PDF attached:[/green] {att_key} (local: {dest})")
-    else:
-        console.print(f"[green]✓ PDF uploaded:[/green] {att_key}")
+        if resp.get("success"):
+            att_key = str(resp["success"][0]["key"])
+        elif resp.get("unchanged"):
+            att_key = str(resp["unchanged"][0]["key"])
+        elif resp.get("failure"):
+            msg = resp["failure"][0].get("message", "Upload failed")
+            raise RuntimeError(f"Attachment upload failed: {msg}")
+        else:
+            raise RuntimeError(f"Unexpected attachment response: {resp}")
 
-    return att_key
+        # Copy to local Zotero storage
+        storage_path = zcfg.get("storage_path", "")
+        if storage_path:
+            local_dir = Path(storage_path) / att_key
+            local_dir.mkdir(parents=True, exist_ok=True)
+            dest = local_dir / filename
+            shutil.copy2(str(pdf_path), str(dest))
+            console.print(f"[green]✓ PDF attached:[/green] {att_key} (local: {dest})")
+        else:
+            console.print(f"[green]✓ PDF uploaded:[/green] {att_key}")
+
+        return att_key
 
 
 def resolve_local_pdf(att_key: str, cfg: dict) -> str:
