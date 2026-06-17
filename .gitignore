@@ -31,3 +31,16 @@ debug_screenshots/
 download/temp/
 *.png
 cache/mineru/
+
+# Cron concurrency lock
+people/data/.cron_lock
+
+# Runtime data (persist locally, not tracked by git)
+# These accumulate across cron runs and should survive prod sync
+error_log.md
+people/data/error_log.md
+people/data/authors_db.json
+people/data/cheng_no_attach.json
+
+# Archive (old deprecated scripts)
+archive.ignore/
