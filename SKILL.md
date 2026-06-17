@@ -73,18 +73,30 @@ allowed-tools: Bash(uv:*), Bash(python:*), Bash(node:*)
 
 详见 `references/people-guide.md`。
 
+**推荐工作流（人机合作）**：
+
+1. Agent：`--scrape-only` → 抓取 Scholar profile
+2. Agent：`--register-only` → 批量注册到 Zotero（纯 CrossRef 元数据，~0.7s/篇，不下载 PDF）
+3. **你**：在 Zotero 中清洗数据（删不相关、修元数据、去重、补遗漏）
+4. Agent：`--attach-missing --scholar-name "学者名"` → 读取 Zotero 文件夹，下载并挂载缺 PDF 的条目
+5. Agent：`--template-only --scholar-name "学者名"` → 生成消化模板
+
+详见 `references/people-guide.md`「人机合作推荐流程」。
+
 CLI 速查：
 ```bash
-# 完整流程
-set PYTHONIOENCODING=utf-8 && python "<skill-base>/people.py" "SCHOLAR_URL" --download
-# 仅抓取
-python "<skill-base>/people.py" "SCHOLAR_URL" --scrape-only
-# 断点续传下载
-python "<skill-base>/people.py" --download-only --scholar-name "学者名"
-# 仅生成消化模板
-python "<skill-base>/people.py" --template-only --scholar-name "学者名"
-# 第二轮重试 (加载已有数据)
-python "<skill-base>/people.py" --retry --scholar-name "学者名"
+# 人机合作流程
+python "<skill-base>/people.py" "SCHOLAR_URL" --scrape-only      # 1. 抓取
+python "<skill-base>/people.py" --register-only --scholar-name "X"  # 2. 注册
+# → 你清洗 Zotero →
+python "<skill-base>/people.py" --attach-missing --scholar-name "X"  # 4. 补PDF
+python "<skill-base>/people.py" --template-only --scholar-name "X"   # 5. 消化
+
+# 旧版全自动（Scholar 干净时可用）
+python "<skill-base>/people.py" "SCHOLAR_URL" --download         # 全套
+python "<skill-base>/people.py" --download-only --scholar-name "X"  # 断点续传
+python "<skill-base>/people.py" --retry --scholar-name "X"         # 重试
+python "<skill-base>/people.py" --template-only --scholar-name "X"   # 仅模板
 ```
 
 ## Step 3：全套工作流（`-paper`）

@@ -10,10 +10,13 @@
 |------|------|
 | 完整流程（抓取+DOI+下载+模板） | `python <skill-base>/people.py "SCHOLAR_URL" --download` |
 | 仅抓取测试 | `python <skill-base>/people.py "SCHOLAR_URL" --scrape-only` |
+| 批量注册 Zotero（不下载 PDF） | `python <skill-base>/people.py --register-only --scholar-name "学者名"` |
 | 断点续传下载 | `python <skill-base>/people.py --download-only --scholar-name "学者名"` |
+| Cron 每 10min 下 1 篇 | `python <skill-base>/people.py --download-only --scholar-name "学者名" --max-papers 1` |
 | 仅生成消化模板 | `python <skill-base>/people.py --template-only --scholar-name "学者名"` |
 | 限制篇数测试 | `python <skill-base>/people.py "URL" --scrape-only --max-papers 5` |
 | 第二轮重试（失败论文） | `python <skill-base>/people.py --retry --scholar-name "学者名"` |
+| **补缺PDF（清洗后）** | `python <skill-base>/people.py --attach-missing --scholar-name "学者名"` |
 
 ## 处理流程
 
@@ -21,8 +24,54 @@
 - **Phase 1b**: CrossRef 搜索标题匹配 DOI（排除补充材料 `.sNNN`，preprint 降权）
 - **Phase 1c**: 作者数据库构建 — 从 CrossRef 提取通讯作者全名、affiliation、缩写，存入 `people/data/authors_db.json`
 - **Phase 2**: 在 Zotero 创建 `People/<学者名>` collection
-- **Phase 3**: 按年份先后线性下载（默认关闭，需 `--download` 启用）
+- **Phase 2b**: `--register-only` — 批量用 CrossRef 元数据创建 Zotero 条目（无 PDF），跳过已有 `zotero_key` 的篇目
+- **Phase 3**: 按年份先后线性下载（默认关闭，需 `--download` 启用）。`download_one_paper` 使用 **state-aware flow**（状态①：已有 PDF → 跳过；状态②：Zotero 有条目无 PDF → DOI 查找 + 下载 + 挂载；状态③：无条目 → 创建 + 下载 + 挂载）
 - **Phase 4**: 生成文献消化模板（4 Block + ⚡ cross-talk 区）
+
+## 人机合作推荐流程（大型学者 200+ 篇）
+
+这是当前推荐的 `-people` 工作方式——**分阶段执行，人在中间清洗数据**：
+
+### Phase 1：Agent 自动 — 建文件夹 + 注册条目
+
+```bash
+# 1a. 抓取 Scholar Profile
+python people.py "SCHOLAR_URL" --scrape-only
+# 1b. DOI 匹配 + 注册到 Zotero
+python people.py --register-only --scholar-name "学者名"
+```
+
+结果：Zotero 里 `People/<学者名>` 文件夹建好，每篇有 CrossRef 元数据（标题、作者、DOI、年份），**无 PDF 附件**。
+
+### 步骤 2：你手动清洗数据
+
+打开 Zotero，在 `People/<学者名>` 文件夹中：
+- 删除不相关的论文
+- 修正错误的元数据
+- 合并重复条目
+- 从 Google Scholar（或其他来源）手动导入你认为重要的遗漏论文
+- 确保所有保留的条目都有正确的 DOI
+
+**清洗完毕通知 agent。**
+
+### Phase 3：Agent 继续 — 补 PDF + 消化
+
+```bash
+# 3a. 读取 Zotero 文件夹，下载并挂载缺 PDF 的条目
+python people.py --attach-missing --scholar-name "学者名"
+# 3b. 生成消化模板
+python people.py --template-only --scholar-name "学者名"
+```
+
+代码行为：
+- **不依赖 `papers.json`**（之前抓取的数据）——直接从 Zotero API 读取 `People/<学者名>` 文件夹的当前状态
+- 只处理有 DOI 且无 PDF 附件的条目
+- 已有 PDF 的条目自动跳过
+- 每次下载一篇，失败不影响其他篇
+
+### ⚠️ 为什么不一把走完 `-people "URL" --download`？
+
+Scholar 抓取的数据很脏（截断作者名、专利/会议混入、preprint/正式版重复），直接一把全自动会导致 Zotero 里大量需要事后清理的条目。人机合作流程把**清洗**放在中间，agent 只负责机械重复的工作（注册 + 下载 PDF）。
 
 ## 批量下载策略
 
