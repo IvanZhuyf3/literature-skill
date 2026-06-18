@@ -12,23 +12,27 @@
 
 ```
 lit/                              ← python -m lit <command> （主入口）
-├── cli.py                        ← argparse 调度（8 子命令）
+├── cli.py                        ← argparse 调度（编排 import_ref → quick_download → attach）
 ├── core/
 │   ├── config.py                 ← 配置单例（取代各模块各自 load_config）
 │   ├── crossref.py               ← CrossRef DOI 解析 + 元数据查询
-│   └── zotero.py                 ← Zotero API 封装（Collection / Item / Attachment）
+│   └── zotero.py                 ← Zotero API 封装（Collection / Item / Attachment / fetch_item / item_to_meta）
 ├── discover/
 │   ├── scholar.py                ← Scholar 抓取 → 直接建 Zotero 条目
-│   └── cite.py                   ← 单篇 DOI/URL/图片 → 注册 Zotero
+│   ├── import_ref.py             ← [NEW] 单篇 DOI/URL/图片 → 注册 Zotero（不下载）
+│   └── _archive/                 ← 旧 cite.py 备份
 ├── download/
+│   ├── quick_download.py         ← [NEW] 编排器：按序调各快速下载方法
+│   ├── scihub_cdp.py             ← [NEW] Sci-Hub CDP（Edge 浏览器过 DDoS-Guard）
 │   ├── engine.py                 ← CDP 下载引擎（导入 publisher/ 适配器）
-│   └── attacher.py               ← PDF 挂载封装
+│   ├── attacher.py               ← PDF 挂载封装
+│   └── _archive/                 ← 旧 cloudscraper 版备份
 ├── batch/
 │   ├── attach.py                 ← 读 Zotero collection → 批量补 PDF
 │   └── register.py               ← 批量注册条目
 └── digest/
     ├── template.py               ← 读 Zotero → 生成 4-Block 消化模板
-    └── parser.py                 ← MinerU PDF → Markdown 解析
+    └── parser.py                 ← MinerU PDF → Markdown 解析（可选 bibliography frontmatter）
 
 publisher/                        ← 25 家出版商适配器（被 download/engine.py 导入）
 ├── base.py                       ← PublisherAdapter 抽象基类
@@ -42,18 +46,20 @@ main.py, zot.py, people.py, chromium_helper.py, url_parser.py, ...
 
 | 模块 | 职责 |
 |------|------|
-| `lit/cli.py` | argparse 调度入口，8 子命令映射到各模块 |
+| `lit/cli.py` | argparse 调度入口，编排 import_ref → quick_download → attach_pdf |
 | `lit/core/config.py` | 配置加载（单例），自动从 `lit/` 父目录找 `config.yaml` |
 | `lit/core/crossref.py` | CrossRef REST API：按标题搜索、按 DOI 获取元数据 |
-| `lit/core/zotero.py` | Zotero API 封装：集合 CRUD、条目创建/去重/删除、附件挂载 |
+| `lit/core/zotero.py` | Zotero API 封装：集合 CRUD、条目创建/去重/删除、附件挂载、fetch_item / item_to_meta |
 | `lit/discover/scholar.py` | Playwright CDP 抓取 Scholar Profile → 过滤专利/会议 → CrossRef DOI 匹配 → Zotero 注册 |
-| `lit/discover/cite.py` | 单篇论文入口：DOI/URL 查 CrossRef 建条目，或图片 OCR 提取引用 |
+| `lit/discover/import_ref.py` | [NEW] 单篇论文入口：DOI/URL 查 CrossRef 建条目，或图片 OCR 提取引用。不下载。 |
+| `lit/download/quick_download.py` | [NEW] 快速下载编排器，按序调 scihub_cdp 等方法，首个成功返回 |
+| `lit/download/scihub_cdp.py` | [NEW] Sci-Hub CDP 下载：Edge 浏览器过 DDoS-Guard，页面内 fetch PDF |
 | `lit/download/engine.py` | PDF 下载引擎：DOI→URL→出版商识别→CDP 连接→适配器分发→fetch()/打印下载→验证 |
 | `lit/download/attacher.py` | 薄封装：下载 + 调用 `core.zotero` 挂载附件 |
 | `lit/batch/attach.py` | 读 Zotero collection 找出无 PDF 条目 → 逐篇下载 + 挂载 |
 | `lit/batch/register.py` | 批量用 CrossRef 元数据注册条目到 Zotero（无 PDF） |
 | `lit/digest/template.py` | 读 Zotero collection → 生成 4-Block 消化模板 Markdown |
-| `lit/digest/parser.py` | MinerU 在线 API PDF→Markdown 解析 |
+| `lit/digest/parser.py` | MinerU 在线 API PDF→Markdown 解析；format_bibliography() 加 YAML 头；format_doi_filename() |
 
 ### 旧版入口（保留兼容，路径见 `references/legacy.md`）
 

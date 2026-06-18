@@ -18,13 +18,13 @@ allowed-tools: Bash(uv:*), Bash(python:*), Bash(node:*)
 ```bash
 python -m lit scholar <URL>           # 抓取 Scholar → 注册 Zotero
 python -m lit scholar <URL> --scrape-only  # 仅抓取，不注册
-python -m lit import <DOI/URL>          单篇→注册 Zotero + Sci-Hub 自动查（≤2021）
-python -m lit import <DOI/URL> --download  注册 + 自动下载（Sci-Hub + 出版商 adapter）
-python -m lit download <DOI/URL>        [DEPRECATED] 用 `import --download` 替代
-python -m lit digest <collection>     # 读 Zotero → 生成消化报告
+python -m lit import <DOI/URL>         # 注册 Zotero → 自动快速下载 PDF（Sci-Hub CDP, ≤2021）
+python -m lit import <image_path>      # 图片 OCR → 注册 Zotero → 自动快速下载
+python -m lit digest <collection>      # 读 Zotero → 生成消化报告
 python -m lit maintain [--collection "Ji-Xin Cheng"] [--fix]  # 文件库健康检查与清理
-python -m lit parse <pdf_path>        # MinerU 解析 PDF → Markdown
+python -m lit parse <pdf_path> [--output <md>] [--item-key <key>]  # MinerU 解析 + 可选 bibliography
 python -m lit qr <DOI>                # 生成 QR 码
+python -m lit download <DOI>           # [已废弃] 用 `lit import` 替代
 ```
 
 旧版入口（`people.py`, `zot.py`, `main.py` 等）已弃用，但代码保留兼容。
@@ -47,19 +47,18 @@ python -m lit qr <DOI>                # 生成 QR 码
 
 ## Step 1：判定任务类型
 
-| 用户意图 | 推荐命令 | 旧版（已弃用） |
-|---------|---------|------------|
-| 收集某学者所有论文 | `lit scholar <URL>` | `people.py "URL" --scrape-only` |
-| 清洗后补缺 PDF | `lit attach <collection>` | `zotero_attach.py --collection "X"` |
-| 生成消化报告 | `lit digest <collection>` | `people.py --template-only --scholar-name "X"` |
-| **单篇加 Zotero（常规）** | `lit import <DOI/URL>` | 加 ref + Sci-Hub 自动查，留手工 Find Full Text 窗口 |
-| **单篇全自动** | `lit import <DOI/URL> --download` | Sci-Hub + 出版商 adapter，不需人工 |
-| 批量补缺 PDF | `lit attach <collection>` | 优先 Sci-Hub，失败走出版商 adapter |
-| 文件库体检/清理 | `lit maintain [--collection X] [--fix]` | 手动检查 |
-| 图片提取引用 | `lit import <image_path>` | `ocr_citation.py <image>` |
-| 生成 QR 码 | `lit qr <DOI>` | `generate_qr.py <DOI>` |
-| PDF 解析 | `lit parse <pdf_path>` | `pdf_parser.py <pdf_path>` |
-| 添加新出版商 | 手动 | 手动 |
+|| 用户意图 | 推荐命令 | 旧版（已弃用） |
+||---------|---------|------------|
+|| 收集某学者所有论文 | `lit scholar <URL>` | `people.py "URL" --scrape-only` |
+|| 清洗后补缺 PDF | `lit attach <collection>` | `zotero_attach.py --collection "X"` |
+|| 生成消化报告 | `lit digest <collection>` | `people.py --template-only --scholar-name "X"` |
+|| **导入单篇（加 ref + 快速下载）** | `lit import <DOI/URL>` | 三步：import_ref → quick_download → attach_pdf |
+|| **图片 OCR 导入** | `lit import <image_path>` | `ocr_citation.py <image>` |
+|| 批量补缺 PDF | `lit attach <collection>` | 优先 Sci-Hub CDP，失败走出版商 adapter |
+|| PDF 解析（带 bibliography） | `lit parse <pdf> --item-key <key>` | `pdf_parser.py <pdf_path>` |
+|| 文件库体检/清理 | `lit maintain [--collection X] [--fix]` | 手动检查 |
+|| 生成 QR 码 | `lit qr <DOI>` | `generate_qr.py <DOI>` |
+|| 添加新出版商 | 手动 | 手动 |
 
 ## Step 2：下载排查 & 适配器
 
@@ -91,11 +90,12 @@ python -m lit scholar "URL"                   # 抓取 + 注册
 
 在 Zotero `People/<学者名>` 文件夹中修元数据、删不相关、去重、补遗漏。
 
-### Phase 3：Agent 继续 — 补 PDF + 消化
+### Phase 3：Agent 继续 — 补 PDF + 解析 + 消化
 
 ```bash
-python -m lit attach "学者名"              # 批量补缺 PDF
+python -m lit attach "学者名"              # 批量补缺 PDF（Sci-Hub CDP + 出版商 adapter）
 python -m lit attach "学者名" --limit 5   # 先测5篇
+python -m lit parse <pdf> --item-key <key>  # 解析 PDF + 加 bibliography 头
 python -m lit digest "学者名"               # 生成消化报告
 ```
 
@@ -150,6 +150,14 @@ PYTHONIOENCODING=utf-8 python "pdf_parser.py" "path"    # 解析
 | `references/maintain.md` | 添加/修复 publisher 流程模板 |
 | `references/people-guide.md` | 人机合作流程详细说明 |
 | `references/digest-workflow.md` | 消化模板填充方法论 |
-| `references/webdav-setup.md` | WebDAV 配置说明 |
-| `references/mineru-api.md` | MinerU PDF 解析 API 说明 |
-| `references/merge-notes.md` | 合并/PR 记录 |
+|| `references/webdav-setup.md` | WebDAV 配置说明 |
+|| `references/mineru-api.md` | MinerU PDF 解析 API 说明 |
+|| `references/merge-notes.md` | 合并/PR 记录 |
+
+## TODO / Ideas
+
+### 被引链接图（Citation Map）
+
+检测库内论文的互相引用关系。每篇 .md（DOI 命名）的参考文献段落扫描 DOI，跟库里已有的 DOI 交叉匹配，生成引用网络数据。库够大（跨多个学者、整个领域）时价值显著，单学者仅自引意义不大。
+
+**条件成熟再动手。**
