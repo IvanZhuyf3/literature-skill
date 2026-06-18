@@ -16,6 +16,7 @@ lit/cli.py — 单一 CLI 入口。
     import_ref.run()       → 仅加 ref 到 Zotero（不下载）
     quick_download.run()   → 用最快免费源下载 PDF（不碰 Zotero）
     lit import 由 CLI 编排: import_ref → quick_download → attach_pdf
+    lit track <author>     → S2 + CrossRef 双源检测新论文，注册到 Zotero + 下载
 """
 from __future__ import annotations
 
@@ -82,6 +83,11 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("pdf", help="按 DOI 查本地 PDF（没有则下载）")
     p.add_argument("doi", help="DOI（精确匹配）")
     p.add_argument("--no-download", action="store_true", help="仅查本地，不下载")
+
+    # ── track ──
+    p = sub.add_parser("track", help="检测作者最新论文并导入 Zotero")
+    p.add_argument("author", help="people/ 下的作者目录名 (如 Ji-Xin_Cheng)")
+    p.add_argument("--download", action="store_true", help="检测后自动下载 PDF")
 
     return parser
 
@@ -180,6 +186,37 @@ def main():
             else:
                 console.print("[red]下载失败[/red]")
                 sys.exit(1)
+
+    elif args.command == "track":
+        from lit.discover.tracker import find_new_papers
+        from lit.download.quick_download import run as quick_run
+        from lit.discover.import_ref import run as import_run
+
+        new = find_new_papers(args.author)
+        if not new:
+            console.print("[green]没有新论文[/green]")
+            return
+
+        console.print(f"\n[bold]发现 {len(new)} 篇新论文:[/bold]")
+        for p in new:
+            console.print(f"  [{p['source']}] {p['doi']}")
+
+        if args.download:
+            for p in new:
+                console.print(f"\n[dim]处理 {p['doi']}...[/dim]")
+                result = import_run(p["doi"])
+                if result.get("doi") and result.get("item_key"):
+                    pdf_path = quick_run(result["doi"], result.get("year"))
+                    if pdf_path:
+                        from lit.core.zotero import attach_pdf
+                        attach_pdf(result["item_key"], pdf_path)
+                        console.print(f"  [green]✓ {p['doi']}[/green]")
+                    else:
+                        console.print(f"  [yellow]⚠ 注册成功，下载失败: {p['doi']}[/yellow]")
+                else:
+                    console.print(f"  [yellow]⚠ 注册失败: {p['doi']}[/yellow]")
+        else:
+            console.print("\n使用 --download 自动下载到 Zotero")
 
 
 if __name__ == "__main__":
