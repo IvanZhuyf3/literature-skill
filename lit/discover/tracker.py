@@ -56,12 +56,23 @@ def _get_zotero_dois() -> set[str]:
 
 # ── Semantic Scholar ──
 
-def _s2_fetch_dois(author_id: str) -> set[str]:
-    """Fetch all DOIs for an author from Semantic Scholar."""
+def _s2_fetch_dois(author_id: str, known_count: int | None = None) -> tuple[set[str], int]:
+    """Fetch DOIs for an author from Semantic Scholar.
+
+    Incremental: if known_count is set, only fetch papers at offset >= known_count
+    (i.e. newly added since last check). Returns (dois, total_count).
+
+    If known_count is None (first run), fetches all papers.
+    S2 API doesn't return total count, so we discover it via pagination.
+    """
     dois: set[str] = set()
-    offset = 0
     limit = 100
     url = f"https://api.semanticscholar.org/graph/v1/author/{author_id}/papers"
+
+    # Determine starting offset
+    start_offset = known_count if known_count is not None else 0
+    offset = start_offset
+    max_count = start_offset  # track highest offset we've seen
 
     while True:
         params = {"fields": "externalIds", "limit": limit, "offset": offset}
@@ -83,12 +94,15 @@ def _s2_fetch_dois(author_id: str) -> set[str]:
             if doi:
                 dois.add(doi.lower())
 
-        if len(papers) < limit:
-            break
-        offset += limit
-        time.sleep(0.5)  # be nice to S2 API
+        max_count = offset + len(papers)
 
-    return dois
+        # S2 returns "next" if there are more pages; absent = last page
+        if "next" not in data:
+            break
+        offset = data["next"]
+        time.sleep(0.5)
+
+    return dois, max_count
 
 
 # ── CrossRef ──
@@ -160,9 +174,13 @@ def find_new_papers(author_dir: str) -> list[dict]:
     crossref_dois: set[str] = set()
 
     if s2_id:
-        console.print(f"[dim]Querying Semantic Scholar (author {s2_id})...[/dim]")
-        s2_dois = _s2_fetch_dois(s2_id)
-        console.print(f"  S2: {len(s2_dois)} DOIs")
+        known_count = profile.get("s2_paper_count")
+        is_first_run = known_count is None
+        console.print(f"[dim]Querying Semantic Scholar (author {s2_id}, "
+                      f"{'full scan' if is_first_run else f'incremental from {known_count}'})...[/dim]")
+        s2_dois, s2_total = _s2_fetch_dois(s2_id, known_count)
+        console.print(f"  S2: {len(s2_dois)} new DOIs (total now {s2_total})")
+        profile["s2_paper_count"] = s2_total
 
     console.print(f"[dim]Querying CrossRef (since {since_date})...[/dim]")
     crossref_dois = _crossref_fetch_dois(aliases, since_date)
