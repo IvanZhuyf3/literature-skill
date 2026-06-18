@@ -60,7 +60,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("parse", help="MinerU 解析 PDF → Markdown（可选带 bibliography）")
     p.add_argument("pdf_path", help="PDF 文件路径")
     p.add_argument("-o", "--output", help="输出文件路径（默认 stdout）")
-    p.add_argument("--doi", help="DOI，自动拉 CrossRef metadata 加到文件头")
+    p.add_argument("--item-key", help="Zotero item key，自动拉 bibliography 加到文件头")
 
     # ── digest ──
     p = sub.add_parser("digest", help="读 Zotero collection → 生成消化报告模板")
@@ -134,8 +134,12 @@ def main():
 
     elif args.command == "parse":
         from lit.digest.parser import run
-        from lit.core.crossref import fetch_metadata
-        metadata = fetch_metadata(args.doi) if args.doi else None
+        from lit.core.zotero import fetch_item, item_to_meta
+        metadata = None
+        if args.item_key:
+            item = fetch_item(args.item_key)
+            if item:
+                metadata = item_to_meta(item)
         run(args.pdf_path, output=args.output, metadata=metadata)
 
     elif args.command == "digest":

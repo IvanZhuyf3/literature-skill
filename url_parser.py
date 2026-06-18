@@ -96,12 +96,29 @@ PUBLISHER_PATTERNS = {
     "spie": [
         r"spiedigitallibrary\.org",
     ],
+    "wulixb": [
+        r"wulixb\.iphy\.ac\.cn",
+    ],
     "biorxiv": [
         r"biorxiv\.org",
         r"medrxiv\.org",
     ],
+    "pmc": [
+        r"pmc\.ncbi\.nlm\.nih\.gov",
+        r"ncbi\.nlm\.nih\.gov/pmc",
+    ],
     "jci_insight": [
         r"insight\.jci\.org",
+    ],
+    "wulixb": [
+        r"wulixb\.iphy\.ac\.cn",
+    ],
+    "lww": [
+        r"journals\.lww\.com",
+        r"pdfs\.journals\.lww\.com",
+    ],
+    "sage": [
+        r"journals\.sagepub\.com",
     ],
 }
 

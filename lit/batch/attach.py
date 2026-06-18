@@ -113,8 +113,8 @@ def run(
         console.print("\n  [green]✓ All items already have PDFs attached.[/green]")
         return stats
 
-    # ── Step 4: download + attach ──────────────────────────────
-    from lit.download.engine import download_pdf
+    # ── Step 4: Download — Sci-Hub first (≤2021), then publisher adapter ──
+    from lit.download.scihub import try_scihub
 
     for i, paper in enumerate(to_process):
         if limit is not None and i >= limit:
@@ -126,8 +126,23 @@ def run(
         console.print(f"\n  [{i + 1}/{stats['total']}] {paper['title']}")
         doi = paper["doi"]
 
+        att_key = None
+
+        # Try Sci-Hub first (fast, no browser)
         try:
-            console.print(f"    [dim]Downloading {doi} ...[/dim]")
+            console.print(f"    [dim]Sci-Hub: {doi} ...[/dim]")
+            pdf_path = try_scihub(doi)
+            if pdf_path:
+                att_key = zot.attach_pdf(paper["key"], pdf_path)
+                stats["attached"] += 1
+                console.print(f"    [green]✓ Sci-Hub: {att_key}[/green]")
+                continue
+        except Exception as e:
+            console.print(f"    [dim]Sci-Hub failed: {str(e)[:60]}[/dim]")
+
+        # Fall through to publisher adapter (slow, needs browser)
+        try:
+            console.print(f"    [dim]Publisher adapter: {doi} ...[/dim]")
             pdf_path: Path = download_pdf(doi, timeout=120)
 
             att_key = zot.attach_pdf(paper["key"], pdf_path)

@@ -48,6 +48,8 @@ from chromium_helper import ChromiumHelper
 from download_monitor import DownloadMonitor
 from url_parser import is_doi, resolve_doi, detect_publisher
 
+from lit.core.screenshot import save_screenshot
+
 # Publisher adapter registry (mirrors main.py)
 from publisher.aaas import AAASAdapter
 from publisher.acs import ACSAdapter
@@ -71,7 +73,11 @@ from publisher.bmj import BMJAdapter
 from publisher.ieee import IEEEAdapter
 from publisher.spie import SPIEAdapter
 from publisher.biorxiv import BiorxivAdapter
+from publisher.pmc import PMCAdapter
 from publisher.jci_insight import JCIInsightAdapter
+from publisher.wulixb import WulixbAdapter
+from publisher.lww import LWWAdapter
+from publisher.sage import SAGEAdapter
 
 console = Console()
 logger = logging.getLogger(__name__)
@@ -99,7 +105,11 @@ _ADAPTERS: dict[str, type] = {
     "ieee": IEEEAdapter,
     "spie": SPIEAdapter,
     "biorxiv": BiorxivAdapter,
+    "pmc": PMCAdapter,
     "jci_insight": JCIInsightAdapter,
+    "wulixb": WulixbAdapter,
+    "lww": LWWAdapter,
+    "sage": SAGEAdapter,
 }
 
 # ──────────────────────────────────────────────────────────────────
@@ -320,10 +330,12 @@ def _download_via_cdp(
             new_ctx = browser.contexts[0] if browser.contexts else browser.new_context()
             page = new_ctx.new_page()
             if not adapter.navigate_to_paper(page, url):
+                save_screenshot(page, "navigate_failed", doi=url)
                 raise RuntimeError("Failed to load page (even with new tab): %s" % url)
 
         # 3d. Check access
         if not adapter.check_access(page):
+            save_screenshot(page, "access_denied", doi=url)
             raise RuntimeError("Access denied / no subscription for: %s" % url)
 
         # 3e. Extract metadata (for file naming) + find download URL
@@ -336,6 +348,7 @@ def _download_via_cdp(
         logger.info("Locating download URL...")
         pdf_url = adapter.find_download_url(page)
         if pdf_url is None:
+            save_screenshot(page, "no_download_url", doi=url)
             raise RuntimeError("Download URL not found in page DOM")
 
         logger.info("PDF URL: %s", pdf_url)
@@ -346,6 +359,7 @@ def _download_via_cdp(
             article_url = page.url
             resolved_url = adapter.resolve_pdf_url(page, pdf_url)
             if resolved_url is None:
+                save_screenshot(page, "resolve_failed", doi=url)
                 raise RuntimeError("Failed to resolve PDF URL through redirects")
             pdf_url = resolved_url
             logger.info("Resolved PDF URL: %s", pdf_url)
@@ -356,10 +370,12 @@ def _download_via_cdp(
                 monitor = DownloadMonitor(config)
                 filepath = adapter.click_download(monitor)
                 if filepath is None:
+                    save_screenshot(page, "click_download_failed", doi=url)
                     raise RuntimeError("Click download failed (timeout or no file)")
                 result_path = _rename_with_title(Path(filepath), title)
                 if _verify_pdf(result_path):
                     return result_path
+                save_screenshot(page, "click_download_bad_pdf", doi=url)
                 raise RuntimeError(
                     "Click-download file is not a valid PDF: %s" % filepath
                 )
@@ -384,6 +400,7 @@ def _download_via_cdp(
             filepath = adapter.fallback_download(page, monitor, pdf_url)
 
         if filepath is None:
+            save_screenshot(page, "download_failed", doi=url)
             raise RuntimeError("PDF download failed (all methods exhausted)")
 
         p = Path(filepath)
@@ -392,6 +409,7 @@ def _download_via_cdp(
         result_path = _rename_with_title(p, title)
 
         if not _verify_pdf(result_path):
+            save_screenshot(page, "verify_failed", doi=url)
             raise RuntimeError(
                 "Downloaded file is not a valid PDF: %s" % result_path
             )

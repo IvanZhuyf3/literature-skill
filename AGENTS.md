@@ -20,10 +20,11 @@
 python -m lit scholar <URL> [--max-papers N] [--scrape-only]
 
 # 单篇注册 Zotero（DOI / URL / 图片 OCR）
-python -m lit import <DOI_or_URL_or_image_path> [--download]
+python -m lit import <DOI_or_URL_or_image_path>        # 常规：加 ref + Sci-Hub 自动查
+python -m lit import <DOI_or_URL_or_image_path> --download  # 全自动：Sci-Hub + 出版商 adapter
 
 # 补缺 PDF（读 Zotero collection）
-python -m lit attach <collection_name> [--limit N]
+python -m lit attach <collection_name> [--limit N]     # 优先 Sci-Hub，失败走出版商 adapter
 
 # 文件库体检与清理
 python -m lit maintain                          # 全库快速检查（孤儿目录 + ghost 条目）

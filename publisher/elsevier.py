@@ -179,19 +179,80 @@ class ElsevierAdapter(PublisherAdapter):
         解析 PDF URL。
 
         如果 find_download_url 返回了 CDN 直链（ars.els-cdn.com），
-        直接返回该 URL，main.py 的 browser_download() 会用 fetch() 下载。
-        无需 Ctrl+P。
+        直接返回该 URL，browser_download() 会用 fetch() 下载，无需 Ctrl+P。
 
-        如果返回的是 pdfft URL，回退到 Ctrl+P + pyautogui 方式。
+        如果返回的是 pdfft URL，优先导航到 pdfft 让浏览器跟随 302 重定向到
+        pdf.sciencedirectassets.com 的签名 S3 直链，从该页面上下文同源 fetch()
+        即可拿到 PDF（无需 pyautogui Ctrl+P，更适合无头/cron 场景）。
+        重定向解析失败时再回退到 Ctrl+P + pyautogui 方式。
         """
         # CDN 直链：直接返回，走 browser_download
         if initial_pdf_url and "ars.els-cdn.com" in initial_pdf_url:
-            logger.info(f"CDN direct download, skipping Ctrl+P: {initial_pdf_url[:100]}")
+            logger.info(f"CDN direct download, skipping redirect: {initial_pdf_url[:100]}")
             return initial_pdf_url
 
-        # pdfft URL：回退到 Ctrl+P 流程
-        logger.info("Using Ctrl+P fallback for pdfft URL...")
+        # pdfft URL：优先重定向解析（签名 S3 直链，同源 fetch）
+        if initial_pdf_url and "/pdfft" in initial_pdf_url:
+            resolved = self._resolve_pdfft_redirect(page, initial_pdf_url)
+            if resolved:
+                return resolved
+            logger.warning("pdfft redirect resolution failed, falling back to Ctrl+P")
+
+        # 其他情况 / 回退：Ctrl+P + pyautogui
+        logger.info("Using Ctrl+P fallback for PDF URL...")
         return self._ctrl_p_download(page, initial_pdf_url)
+
+    def _resolve_pdfft_redirect(self, page, pdfft_url: str) -> Optional[str]:
+        """导航到 /pdfft URL，跟随客户端 JS 重定向到签名 S3 直链。
+
+        ScienceDirect 的 /pdfft 端点返回一个 HTML 页面，页面内 JS 会重定向到一个
+        带 AWS 签名的 S3 直链 (pdf.sciencedirectassets.com/.../main.pdf?X-Amz-...)，
+        Chrome 随后用内置 PDF 查看器渲染它。
+
+        关键点：该重定向是客户端 JS 触发的（不是 302），发生在 domcontentloaded
+        之后约 1-5 秒。Playwright 的 ``page.url`` 在跳入 PDF 查看器期间会滞后/失真，
+        因此必须用 ``page.evaluate("window.location.href")`` 读取真实 URL，并在
+        "Execution context was destroyed"（重定向过渡期）时重试。
+
+        从该页面上下文 ``fetch(window.location.href)`` 可直接拿到 PDF 字节（同源，
+        无 CORS），browser_download() 会完成实际下载。签名 URL 有效期约 5 分钟
+        （X-Amz-Expires=300）。适用于老论文（无 ars.els-cdn.com main.pdf CDN 直链）。
+        """
+        try:
+            logger.info(f"Navigating to pdfft for redirect resolution: {pdfft_url[:80]}...")
+            page.goto(pdfft_url, wait_until="domcontentloaded", timeout=60000)
+
+            # 轮询 window.location.href，等待 JS 重定向到 S3 签名直链并稳定
+            final_url = None
+            last_url = None
+            stable = 0
+            deadline = time.time() + 18
+            while time.time() < deadline:
+                time.sleep(1)
+                try:
+                    cur = page.evaluate("() => window.location.href")
+                except Exception:
+                    # 重定向过渡期：执行上下文被销毁，继续等待
+                    stable = 0
+                    continue
+                if cur and cur != pdfft_url and ".pdf" in cur.lower():
+                    if cur == last_url:
+                        stable += 1
+                    else:
+                        stable = 1
+                        last_url = cur
+                    # 连续两次相同 → 重定向已稳定，PDF 查看器就绪
+                    if stable >= 2:
+                        final_url = cur
+                        break
+            if final_url:
+                logger.info(f"pdfft redirected to S3 direct link: {final_url[:120]}...")
+                return final_url
+            logger.warning("pdfft JS redirect to S3 did not settle within 18s")
+            return None
+        except Exception as e:
+            logger.error(f"pdfft navigation failed: {e}")
+            return None
 
     def fallback_download(self, page, monitor, failed_cdn_url: str):
         """
@@ -287,8 +348,41 @@ class ElsevierAdapter(PublisherAdapter):
             new_page = page
             self._reuse_original_page = True
 
+        time.sleep(3)
+
+        # Check if we landed on a signed S3 URL (HTML interstitial instead of inline PDF)
+        current_url = new_page.url
+        if "pdf.sciencedirectassets.com" in current_url:
+            logger.info("  Detected signed S3 URL (%s...), using CDP fetch download instead of Ctrl+P", current_url[:80])
+            # Try to download via CDP evaluate + fetch
+            try:
+                result = new_page.evaluate("""async (url) => {
+                    try {
+                        const resp = await fetch(url);
+                        if (!resp.ok) return {error: 'HTTP ' + resp.status};
+                        const ct = resp.headers.get('content-type') || '';
+                        if (!ct.includes('pdf')) return {error: 'Not PDF: ' + ct};
+                        const buf = await resp.arrayBuffer();
+                        return {size: buf.byteLength, data: Array.from(new Uint8Array(buf))};
+                    } catch(e) { return {error: e.message}; }
+                }""", current_url)
+                if result.get("error"):
+                    logger.error("  S3 fetch failed: %s", result["error"])
+                elif result.get("size", 0) > 10000:
+                    import os
+                    temp_dir = self._config.get("download", {}).get("temp_dir", os.path.expandvars(r"C:\Users\Ivanz\Downloads\temp"))
+                    os.makedirs(temp_dir, exist_ok=True)
+                    filepath = os.path.join(temp_dir, f"elsevier_{int(time.time())}.pdf")
+                    with open(filepath, "wb") as f:
+                        f.write(bytes(result["data"]))
+                    logger.info("  Saved S3 PDF via fetch: %s (%d bytes)", filepath, result["size"])
+                    self._s3_download_path = filepath
+                    return "__click_download__"  # Bypass Ctrl+P, click_download will pick up _s3_download_path
+            except Exception as e:
+                logger.error("  S3 fetch exception: %s", e)
+
         # 等待 PDF 加载
-        time.sleep(5)
+        time.sleep(2)
 
         try:
             new_page.bring_to_front()
@@ -364,7 +458,17 @@ class ElsevierAdapter(PublisherAdapter):
         time.sleep(2)
 
     def click_download(self, monitor) -> Optional[str]:
-        """等待 Ctrl+P 打印的 PDF 落盘。"""
+        """Return S3-fetched PDF if already downloaded, otherwise wait for Ctrl+P PDF to land."""
+        # Check if _ctrl_p_download already saved via S3 fetch
+        if hasattr(self, '_s3_download_path') and self._s3_download_path:
+            path = self._s3_download_path
+            self._s3_download_path = None  # reset
+            size = os.path.getsize(path) if os.path.exists(path) else 0
+            if size > 10000:
+                logger.info("Returning S3-fetched PDF: %s (%d bytes)", path, size)
+                return path
+            logger.warning("S3-fetched file invalid, falling through to Ctrl+P wait...")
+
         import glob as glob_mod
         temp_dir = monitor.get_temp_dir()
         logger.info("Waiting for PDF print to complete...")

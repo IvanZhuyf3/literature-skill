@@ -47,6 +47,8 @@ from publisher.ieee import IEEEAdapter
 from publisher.spie import SPIEAdapter
 from publisher.biorxiv import BiorxivAdapter
 from publisher.jci_insight import JCIInsightAdapter
+from publisher.lww import LWWAdapter
+from publisher.sage import SAGEAdapter
 
 console = Console()
 
@@ -124,6 +126,8 @@ def get_adapter(publisher: str, config: dict):
         "spie": SPIEAdapter,
         "biorxiv": BiorxivAdapter,
         "jci_insight": JCIInsightAdapter,
+        "lww": LWWAdapter,
+        "sage": SAGEAdapter,
     }
     adapter_cls = adapters.get(publisher)
     if adapter_cls is None:

@@ -5,27 +5,27 @@ Thin wrapper around ``pdf_parser.py`` that uses ``lit.core.config.load()``
 for the MinerU token instead of pdf_parser's own ``load_config()``.
 
 Usage:
-    from lit.digest.parser import run
+    from lit.digest.parser import run, format_doi_filename
     md = run("path/to/paper.pdf")
     # → returns full markdown string, or None on failure
 
-    run("path/to/paper.pdf", output="output.md")
-    # → saves to file and returns output path
+    # With metadata (prepends YAML bibliography frontmatter):
+    run("path/to/paper.pdf", metadata={...})
 
-    # With metadata (prepends bibliography section):
-    run("path/to/paper.pdf", metadata={"DOI": "10.1234/...", ...})
+    fn = format_doi_filename("10.1234/example")
+    # → "10.1234_example.md"
 
 CLI:
-    python -m lit parse <pdf_path> [--output <md_path>] [--doi <DOI>]
+    python -m lit parse <pdf_path> [--output <md_path>] [--item-key <key>]
 """
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
 from lit.core.config import load as get_config
-from lit.core.crossref import fetch_metadata
 
 # pdf_parser is at the skill base root, not inside lit/.
 # Add the skill base to sys.path so we can import it.
@@ -35,15 +35,28 @@ if str(_SKILL_BASE) not in sys.path:
     sys.path.insert(0, str(_SKILL_BASE))
 
 
+def format_doi_filename(doi: str) -> str:
+    """Convert a DOI to a safe, unique .md filename.
+
+    Replaces ``/`` and other filesystem-unsafe chars with ``_``.
+    Example: ``10.1038/s41586-021-03819-2`` → ``10.1038_s41586-021-03819-2.md``
+    """
+    safe = re.sub(r'[\\/:*?"<>|]', "_", doi.strip())[:120]
+    return f"{safe}.md"
+
+
 def format_bibliography(meta: dict) -> str:
-    """Format a markdown bibliography section from CrossRef metadata dict.
+    """Format a YAML bibliography frontmatter from a metadata dict.
+
+    Fields supported: doi, title, authors, journal, year, volume,
+    issue, pages, publisher.  Only non-empty fields are included.
 
     Args:
-        meta: Dict with keys like DOI, title, authors, journal, year,
-              volume, issue, pages, publisher, url.
+        meta: Dict with keys like DOI, title, authors (list[str]), journal,
+              year, volume, issue, pages, publisher, url.
 
     Returns:
-        A markdown section string ready to prepend to a paper .md file.
+        A YAML frontmatter string ready to prepend to a paper .md file.
     """
     lines = ["---", "bibliography:"]
 
@@ -53,7 +66,8 @@ def format_bibliography(meta: dict) -> str:
 
     title = meta.get("title", "")
     if title:
-        lines.append(f"  title: \"{title.replace(chr(34), chr(39))}\"")
+        escaped = title.replace('"', "'")
+        lines.append(f'  title: "{escaped}"')
 
     authors = meta.get("authors", [])
     if authors:
@@ -61,11 +75,12 @@ def format_bibliography(meta: dict) -> str:
             joined = "; ".join(a.strip() for a in authors if a.strip())
         else:
             joined = str(authors).strip()
-        lines.append(f"  authors: \"{joined.replace(chr(34), chr(39))}\"")
+        escaped = joined.replace('"', "'")
+        lines.append(f'  authors: "{escaped}"')
 
     journal = meta.get("journal", "")
     if journal:
-        lines.append(f"  journal: \"{journal}\"")
+        lines.append(f'  journal: "{journal}"')
 
     year = meta.get("year", "")
     if year:
@@ -81,11 +96,11 @@ def format_bibliography(meta: dict) -> str:
 
     pages = meta.get("pages", "")
     if pages:
-        lines.append(f"  pages: \"{pages}\"")
+        lines.append(f'  pages: "{pages}"')
 
     publisher = meta.get("publisher", "")
     if publisher:
-        lines.append(f"  publisher: \"{publisher}\"")
+        lines.append(f'  publisher: "{publisher}"')
 
     lines.append("---")
     lines.append("")
@@ -103,8 +118,8 @@ def run(
     Args:
         pdf_path: Path to PDF file.
         output: Optional output file path (None = print to stdout).
-        metadata: Optional CrossRef-style metadata dict. If provided,
-                  a YAML bibliography section is prepended to the markdown.
+        metadata: Optional metadata dict. If provided, a YAML bibliography
+                  frontmatter section is prepended to the markdown.
 
     Returns:
         Markdown string if no output path given, or the output file path
@@ -119,7 +134,7 @@ def run(
         print("FAILED: PDF parsing failed", file=sys.stderr)
         return None
 
-    # Prepend bibliography section if metadata provided
+    # Prepend bibliography frontmatter if metadata provided
     if metadata:
         bib = format_bibliography(metadata)
         markdown = bib + markdown
@@ -144,7 +159,10 @@ def main() -> None:
     )
     parser.add_argument("pdf_path", help="Path to PDF file")
     parser.add_argument("--output", "-o", help="Output markdown file path")
-    parser.add_argument("--doi", help="DOI for bibliography metadata (fetched from CrossRef)")
+    parser.add_argument(
+        "--item-key",
+        help="Zotero item key for bibliography metadata (auto-fetched)",
+    )
     parser.add_argument("--debug", action="store_true")
 
     args = parser.parse_args()
@@ -153,15 +171,17 @@ def main() -> None:
         import logging
         logging.basicConfig(level=logging.DEBUG, format="[%(levelname)s] %(message)s")
 
-    # Fetch metadata from CrossRef if DOI provided
+    # Fetch metadata from Zotero if item_key provided
     metadata = None
-    if args.doi:
-        meta = fetch_metadata(args.doi)
-        if meta:
-            metadata = meta
-            print(f"  Bibliography: {meta.get('title','?')[:60]}", file=sys.stderr)
+    if args.item_key:
+        from lit.core.zotero import fetch_item, item_to_meta
+        item = fetch_item(args.item_key)
+        if item:
+            metadata = item_to_meta(item)
+            title = metadata.get("title", "?")[:60]
+            print(f"  Bibliography: {title}", file=sys.stderr)
         else:
-            print(f"  [yellow]⚠ Could not fetch metadata for DOI {args.doi}[/yellow]",
+            print(f"  [yellow]⚠ Item {args.item_key} not found in Zotero[/yellow]",
                   file=sys.stderr)
 
     result = run(args.pdf_path, output=args.output, metadata=metadata)

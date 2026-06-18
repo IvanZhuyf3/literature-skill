@@ -313,6 +313,80 @@ def collection_items_top(collection_key: str) -> list[dict]:
     return all_items
 
 
+def fetch_item(item_key: str) -> dict | None:
+    """Fetch a single Zotero item by key.
+
+    Returns the full item dict (including ``data`` sub-dict with title,
+    DOI, creators, date, etc.), or ``None`` if not found.
+    """
+    zot = _client()
+    try:
+        item = zot.item(item_key)
+        return item
+    except Exception:
+        logger.warning("fetch_item: item %s not found", item_key)
+        return None
+
+
+def item_to_meta(item: dict) -> dict:
+    """Extract a CrossRef-style metadata dict from a Zotero item dict.
+
+    Fields: DOI, title, authors (list), journal, year, volume, issue,
+            pages, ISSN, publisher, url.
+    """
+    data = item.get("data", item)
+    meta: dict = {}
+
+    meta["DOI"] = data.get("DOI", "")
+
+    title = data.get("title", "")
+    # Zotero sometimes stores shortTitle separately
+    if not title:
+        title = data.get("shortTitle", "")
+    meta["title"] = title
+
+    # Journal name: depends on item type
+    itype = data.get("itemType", "")
+    if itype == "conferencePaper":
+        meta["journal"] = data.get("proceedingsTitle", data.get("conferenceName", ""))
+    elif itype == "thesis":
+        meta["journal"] = data.get("university", data.get("publisher", ""))
+    else:
+        meta["journal"] = data.get("publicationTitle", "") or data.get("publisher", "")
+
+    meta["publisher"] = data.get("publisher", "")
+
+    # Creators → authors
+    creators = data.get("creators", [])
+    authors: list[str] = []
+    for c in creators:
+        first = (c.get("firstName") or c.get("name", "")).strip()
+        last = (c.get("lastName") or "").strip()
+        if last and first:
+            authors.append(f"{first} {last}")
+        elif last:
+            authors.append(last)
+        elif first:
+            authors.append(first)
+    meta["authors"] = authors
+
+    # Date → year
+    date_str = data.get("date", "")
+    if date_str:
+        import re as _re
+        m = _re.search(r"(\d{4})", date_str)
+        if m:
+            meta["year"] = m.group(1)
+
+    meta["volume"] = data.get("volume", "")
+    meta["issue"] = data.get("issue", "")
+    meta["pages"] = data.get("pages", "")
+    meta["ISSN"] = data.get("ISSN", "")
+    meta["url"] = data.get("url", "")
+
+    return meta
+
+
 def delete_item(item_key: str):
     """Delete an item by key. Fetches the item first to get version info."""
     zot = _client()

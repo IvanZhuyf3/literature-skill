@@ -41,6 +41,51 @@ class OpticaAdapter(PublisherAdapter):
             logger.error(f"Failed to load Optica page: {e}")
             return False
 
+    def check_access(self, page) -> bool:
+        """检查是否有权限访问该论文。
+
+        Optica 的全文页包含参考文献中的页码（如 "397–403"），
+        会触发基类 check_access 中 "403" 的误判。
+        改为：有 citation_pdf_url 或 Get PDF 链接 = 有权限。
+        """
+        # 有 citation_pdf_url meta 标签 = 有权限
+        try:
+            has_pdf_meta = page.evaluate("""() => {
+                return document.querySelector('meta[name="citation_pdf_url"]') !== null;
+            }""")
+            if has_pdf_meta:
+                return True
+        except Exception:
+            pass
+
+        # 有 "Get PDF" / "PDF Article" 按钮 = 有权限
+        try:
+            for selector in ['a:has-text("Get PDF")', 'a:has-text("PDF Article")']:
+                el = page.query_selector(selector)
+                if el:
+                    return True
+        except Exception:
+            pass
+
+        # 没有 PDF 入口，检查是否有明确的付费墙提示
+        try:
+            body_text = page.inner_text("body")
+            paywall_indicators = [
+                "Purchase this article",
+                "Buy this article",
+                "You do not have access",
+                "Access Denied",
+            ]
+            for indicator in paywall_indicators:
+                if indicator.lower() in body_text.lower():
+                    logger.warning(f"Optica access denied: {indicator}")
+                    return False
+        except Exception:
+            pass
+
+        # 默认认为有权限（避免误判）
+        return True
+
     def find_download_element(self, page) -> Optional[Any]:
         """定位 "Get PDF" 按钮。"""
         for selector in ['a:has-text("Get PDF")', 'a:has-text("PDF Article")']:
@@ -61,6 +106,55 @@ class OpticaAdapter(PublisherAdapter):
                         return link
         except Exception:
             pass
+        return None
+
+    def find_download_url(self, page) -> Optional[str]:
+        """从页面提取 PDF 下载链接。
+
+        优先使用 citation_pdf_url meta 标签（最可靠），
+        其次尝试 DOM 中的 Get PDF / PDF Article 按钮，
+        最后从当前页面 URI 构造 viewmedia.cfm?seq=0 链接。
+
+        注：find_download_element() 的 is_visible() 检查在某些
+        Optica 页面（如 fulltext.cfm）上会因 CSS 布局问题失败，
+        所以这里优先用 meta 标签绕过 DOM 可见性问题。
+        """
+        import re
+        from urllib.parse import urljoin
+
+        # 1. citation_pdf_url meta 标签（最可靠）
+        try:
+            pdf_url = page.evaluate("""() => {
+                const el = document.querySelector('meta[name="citation_pdf_url"]');
+                return el ? el.content : null;
+            }""")
+            if pdf_url:
+                logger.info(f"Found citation_pdf_url meta: {pdf_url}")
+                return pdf_url
+        except Exception as e:
+            logger.debug(f"citation_pdf_url extraction failed: {e}")
+
+        # 2. 回退到 DOM 选择器
+        element = self.find_download_element(page)
+        if element is not None:
+            href = element.get_attribute("href")
+            if href:
+                if not href.startswith(("http://", "https://")):
+                    href = urljoin(page.url, href)
+                logger.info(f"Found download element href: {href}")
+                return href
+
+        # 3. 最终回退：从当前页面 URL 构造 viewmedia.cfm?seq=0
+        try:
+            uri_match = re.search(r"uri=([a-z]+-\d+-\d+-\d+)", page.url, re.IGNORECASE)
+            if uri_match:
+                uri = uri_match.group(1)
+                constructed = f"https://opg.optica.org/viewmedia.cfm?uri={uri}&seq=0"
+                logger.info(f"Constructed viewmedia URL from URI: {constructed}")
+                return constructed
+        except Exception:
+            pass
+
         return None
 
     def resolve_pdf_url(self, page, initial_pdf_url: str) -> Optional[str]:

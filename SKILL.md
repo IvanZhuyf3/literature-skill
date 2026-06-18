@@ -18,11 +18,10 @@ allowed-tools: Bash(uv:*), Bash(python:*), Bash(node:*)
 ```bash
 python -m lit scholar <URL>           # 抓取 Scholar → 注册 Zotero
 python -m lit scholar <URL> --scrape-only  # 仅抓取，不注册
-python -m lit import <DOI/URL>        # 单篇 → 注册 Zotero
-python -m lit import <image_path>     # 图片 OCR → 注册 Zotero
-python -m lit attach <collection>     # 读 Zotero → 批量补 PDF
+python -m lit import <DOI/URL>          单篇→注册 Zotero + Sci-Hub 自动查（≤2021）
+python -m lit import <DOI/URL> --download  注册 + 自动下载（Sci-Hub + 出版商 adapter）
+python -m lit download <DOI/URL>        [DEPRECATED] 用 `import --download` 替代
 python -m lit digest <collection>     # 读 Zotero → 生成消化报告
-python -m lit download <DOI/URL>      # 仅下载 PDF（不入 Zotero）
 python -m lit maintain [--collection "Ji-Xin Cheng"] [--fix]  # 文件库健康检查与清理
 python -m lit parse <pdf_path>        # MinerU 解析 PDF → Markdown
 python -m lit qr <DOI>                # 生成 QR 码
@@ -53,8 +52,9 @@ python -m lit qr <DOI>                # 生成 QR 码
 | 收集某学者所有论文 | `lit scholar <URL>` | `people.py "URL" --scrape-only` |
 | 清洗后补缺 PDF | `lit attach <collection>` | `zotero_attach.py --collection "X"` |
 | 生成消化报告 | `lit digest <collection>` | `people.py --template-only --scholar-name "X"` |
-| 单篇加 Zotero | `lit import <DOI/URL>` | `zot.py <URL>` |
-| 单篇下载 PDF | `lit download <DOI/URL>` | `main.py <URL>` |
+| **单篇加 Zotero（常规）** | `lit import <DOI/URL>` | 加 ref + Sci-Hub 自动查，留手工 Find Full Text 窗口 |
+| **单篇全自动** | `lit import <DOI/URL> --download` | Sci-Hub + 出版商 adapter，不需人工 |
+| 批量补缺 PDF | `lit attach <collection>` | 优先 Sci-Hub，失败走出版商 adapter |
 | 文件库体检/清理 | `lit maintain [--collection X] [--fix]` | 手动检查 |
 | 图片提取引用 | `lit import <image_path>` | `ocr_citation.py <image>` |
 | 生成 QR 码 | `lit qr <DOI>` | `generate_qr.py <DOI>` |
