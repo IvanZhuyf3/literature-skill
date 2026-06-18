@@ -31,7 +31,6 @@ debug_screenshots/
 download/temp/
 *.png
 cache/mineru/
-cache/doi_index.json
 
 # Cron concurrency lock
 people/data/.cron_lock

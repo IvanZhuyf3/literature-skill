@@ -367,7 +367,3 @@ def run(collection: str | None = None, fix: bool = False, dry_run: bool = False)
             console.print("\n[green]✅ All clean — no issues found.[/green]")
         else:
             console.print(f"\n[yellow]Found {total_issues} issues. Run with --fix to clean up.[/yellow]")
-
-    # ── Refresh DOI index ──
-    from lit.core.zotero import build_doi_index
-    build_doi_index(force=True)

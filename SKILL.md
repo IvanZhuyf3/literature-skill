@@ -23,7 +23,7 @@ python -m lit import <image_path>      # 图片 OCR → 注册 Zotero → 自动
 python -m lit pdf <DOI>                # 查本地 PDF → 没有则下载（输出文件路径）
 python -m lit pdf <DOI> --no-download  # 仅查本地，不触发下载
 python -m lit digest <collection>      # 读 Zotero → 生成消化报告
-python -m lit maintain [--collection "Ji-Xin Cheng"] [--fix]  # 文件库健康检查与清理 + DOI索引刷新
+python -m lit maintain [--collection "Ji-Xin Cheng"] [--fix]  # 文件库健康检查与清理
 python -m lit parse <pdf_path> [--output <md>] [--item-key <key>]  # MinerU 解析 + 可选 bibliography
 python -m lit qr <DOI>                # 生成 QR 码
 python -m lit download <DOI>           # [已废弃] 用 `lit import` 替代

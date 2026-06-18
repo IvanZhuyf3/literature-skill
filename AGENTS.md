@@ -69,3 +69,11 @@ python -m lit download <DOI>   # 用 `lit import` 替代
 - 旧版入口（`main.py`, `zot.py`, `people.py`）代码保留兼容但不再主动维护
 - `lit/download/engine.py` 有 fallback：CDP + adapter 失败时调 `main.py` 子进程
 - Sci-Hub CDP 下载：DDoS-Guard 需~5s 解析，`wait_for_load_state("domcontentloaded")` + 轮询 title
+
+## TODO / Ideas（未排期）
+
+### 被引链接图（Citation Map）
+
+检测库内论文的互相引用关系。每篇 .md（DOI 命名）的参考文献段落扫描 DOI，跟库里已有的 DOI 交叉匹配，生成引用网络数据。库够大（跨多个学者、整个领域）时价值显著，单学者仅自引意义不大。
+
+**条件成熟再动手。**

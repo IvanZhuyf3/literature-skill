@@ -7,6 +7,7 @@ lit/core/zotero.py — Zotero API 薄封装
 from __future__ import annotations
 
 import sys
+import sqlite3
 from pathlib import Path
 from typing import Any
 
@@ -43,68 +44,30 @@ def _api_headers() -> dict[str, str]:
     }
 
 
-# ── DOI index (local cache) ──
+# ── Local SQLite (read-only, copy first to avoid lock) ──
 
-import json as _json
-import os as _os
-import time as _time
+def _local_db() -> tuple[sqlite3.Connection, Path] | None:
+    """Copy zotero.sqlite to temp and return (conn, temp_path) for read-only query.
 
-from lit.core.config import skill_base as _skill_base
-
-_INDEX_PATH = _skill_base() / "cache" / "doi_index.json"
-_INDEX_MAX_AGE = 7 * 24 * 3600  # 7 days
-
-
-def build_doi_index(force: bool = False) -> dict[str, str]:
-    """Scan all Zotero items and build {doi_lower: item_key} index.
-
-    Cached to cache/doi_index.json. Rebuilds if missing or stale (>7 days)
-    unless force=True.
-
-    Returns the doi→key dict.
+    Copies the DB to avoid lock conflicts with the running Zotero client.
+    Caller is responsible for conn.close() + temp_path.unlink().
+    Returns None if zotero.sqlite not found.
     """
-    if not force and _INDEX_PATH.exists():
-        age = _time.time() - _INDEX_PATH.stat().st_mtime
-        if age < _INDEX_MAX_AGE:
-            with open(_INDEX_PATH, "r", encoding="utf-8") as f:
-                data = _json.load(f)
-            return data.get("dois", {})
+    import shutil
+    import tempfile
 
-    console.print("[dim]Building DOI index (one-time, ~60s for large libraries)...[/dim]")
-    zot = _client()
-    doi_map: dict[str, str] = {}
-    start = 0
-    batch_size = 100
-    total = 0
-    while True:
-        items = zot.items(itemType="-attachment", limit=batch_size, start=start)
-        if not items:
-            break
-        for item in items:
-            d = item.get("data", {})
-            doi = d.get("DOI", "").strip().lower()
-            if doi:
-                doi_map[doi] = item["key"]
-        total += len(items)
-        start += batch_size
-        if len(items) < batch_size:
-            break
-        _time.sleep(0.3)
+    storage = get_storage_path()
+    if not storage:
+        return None
+    db_path = Path(storage).parent / "zotero.sqlite"
+    if not db_path.exists():
+        return None
 
-    _INDEX_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with open(_INDEX_PATH, "w", encoding="utf-8") as f:
-        _json.dump({"dois": doi_map, "count": len(doi_map), "built_at": _time.time()}, f)
-    console.print(f"[green]✓ DOI index:[/green] {len(doi_map)} entries from {total} items")
-    return doi_map
-
-
-def _load_doi_index() -> dict[str, str]:
-    """Load DOI index from cache. Does NOT auto-rebuild if missing."""
-    if _INDEX_PATH.exists():
-        with open(_INDEX_PATH, "r", encoding="utf-8") as f:
-            data = _json.load(f)
-        return data.get("dois", {})
-    return {}
+    tmp_path = Path(tempfile.gettempdir()) / "lit_zotero_query.sqlite"
+    shutil.copy2(db_path, tmp_path)
+    conn = sqlite3.connect(str(tmp_path))
+    conn.row_factory = sqlite3.Row
+    return conn, tmp_path
 
 
 # ── Collection operations ──
@@ -168,17 +131,34 @@ def list_collections() -> list[dict]:
 def find_by_doi(doi: str) -> str | None:
     """Search by DOI, return item key or None. Skips attachments and notes.
 
-    Uses local DOI index (cache/doi_index.json). Falls back to API q-search
-    if index is missing (less reliable — Zotero API q does not index DOI field).
+    Uses local SQLite (zotero.sqlite copy) for instant lookup.
+    Falls back to API q-search if DB not available (less reliable).
     """
     if not doi:
         return None
     doi = doi.lower().strip()
 
-    # Try local index first (fast, reliable)
-    index = _load_doi_index()
-    if index:
-        return index.get(doi)
+    # Try local SQLite first (fast, reliable)
+    result = _local_db()
+    if result:
+        conn, tmp = result
+        try:
+            row = conn.execute("""
+                SELECT i.key
+                FROM items i
+                JOIN itemData id ON i.itemID = id.itemID
+                JOIN fields f ON id.fieldID = f.fieldID
+                JOIN itemDataValues idv ON id.valueID = idv.valueID
+                WHERE f.fieldName = 'DOI' AND LOWER(idv.value) = ?
+                LIMIT 1
+            """, (doi,)).fetchone()
+            if row:
+                return row["key"]
+        except Exception:
+            pass  # schema mismatch or query error → fallback
+        finally:
+            conn.close()
+            tmp.unlink(missing_ok=True)
 
     # Fallback: API q-search (unreliable for DOI, but better than nothing)
     zot = _client()
@@ -345,9 +325,8 @@ def has_pdf_attachment(item_key: str) -> bool:
 def resolve_local_pdf(doi: str) -> str | None:
     """按 DOI 精确查找本地 Zotero 存储的 PDF 文件路径。
 
-    流程: find_by_doi → get_children → 拼 storage/{att_key}/ → 验证文件存在。
-    不信任 Zotero 附件记录，必须 os.path.isfile 验证磁盘上真有 PDF。
-    首次使用自动构建 DOI 索引（~60s），后续读缓存（秒级）。
+    使用本地 SQLite（zotero.sqlite 副本），一条查询从 DOI 到附件路径。
+    验证文件真实存在于磁盘上（防止 ghost attachment）。
 
     Returns:
         PDF 绝对路径 if found, None otherwise.
@@ -355,27 +334,35 @@ def resolve_local_pdf(doi: str) -> str | None:
     import os
 
     doi = doi.lower().strip()
-    item_key = find_by_doi(doi)
-
-    # If no hit and no index cache, build it then retry
-    if not item_key and not _INDEX_PATH.exists():
-        build_doi_index()
-        item_key = find_by_doi(doi)
-
-    if not item_key:
+    result = _local_db()
+    if not result:
         return None
+    conn, tmp = result
 
-    children = get_children(item_key)
+    try:
+        rows = conn.execute("""
+            SELECT att.key AS att_key
+            FROM items parent
+            JOIN itemData id ON parent.itemID = id.itemID
+            JOIN fields f ON id.fieldID = f.fieldID
+            JOIN itemDataValues idv ON id.valueID = idv.valueID
+            JOIN itemAttachments ia ON ia.parentItemID = parent.itemID
+            JOIN items att ON att.itemID = ia.itemID
+            WHERE f.fieldName = 'DOI' AND LOWER(idv.value) = ?
+            AND ia.contentType = 'application/pdf'
+        """, (doi,)).fetchall()
+    except Exception:
+        return None
+    finally:
+        conn.close()
+        tmp.unlink(missing_ok=True)
+
     storage = get_storage_path()
     if not storage:
         return None
 
-    for child in children:
-        cd = child.get("data", {})
-        if cd.get("contentType") != "application/pdf":
-            continue
-        att_key = child["key"]
-        dir_path = os.path.join(storage, att_key)
+    for row in rows:
+        dir_path = os.path.join(storage, row["att_key"])
         if not os.path.isdir(dir_path):
             continue
         pdfs = [f for f in os.listdir(dir_path) if f.lower().endswith(".pdf")]
