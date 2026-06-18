@@ -43,6 +43,70 @@ def _api_headers() -> dict[str, str]:
     }
 
 
+# ── DOI index (local cache) ──
+
+import json as _json
+import os as _os
+import time as _time
+
+from lit.core.config import skill_base as _skill_base
+
+_INDEX_PATH = _skill_base() / "cache" / "doi_index.json"
+_INDEX_MAX_AGE = 7 * 24 * 3600  # 7 days
+
+
+def build_doi_index(force: bool = False) -> dict[str, str]:
+    """Scan all Zotero items and build {doi_lower: item_key} index.
+
+    Cached to cache/doi_index.json. Rebuilds if missing or stale (>7 days)
+    unless force=True.
+
+    Returns the doi→key dict.
+    """
+    if not force and _INDEX_PATH.exists():
+        age = _time.time() - _INDEX_PATH.stat().st_mtime
+        if age < _INDEX_MAX_AGE:
+            with open(_INDEX_PATH, "r", encoding="utf-8") as f:
+                data = _json.load(f)
+            return data.get("dois", {})
+
+    console.print("[dim]Building DOI index (one-time, ~60s for large libraries)...[/dim]")
+    zot = _client()
+    doi_map: dict[str, str] = {}
+    start = 0
+    batch_size = 100
+    total = 0
+    while True:
+        items = zot.items(itemType="-attachment", limit=batch_size, start=start)
+        if not items:
+            break
+        for item in items:
+            d = item.get("data", {})
+            doi = d.get("DOI", "").strip().lower()
+            if doi:
+                doi_map[doi] = item["key"]
+        total += len(items)
+        start += batch_size
+        if len(items) < batch_size:
+            break
+        _time.sleep(0.3)
+
+    _INDEX_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(_INDEX_PATH, "w", encoding="utf-8") as f:
+        _json.dump({"dois": doi_map, "count": len(doi_map), "built_at": _time.time()}, f)
+    console.print(f"[green]✓ DOI index:[/green] {len(doi_map)} entries from {total} items")
+    return doi_map
+
+
+def _load_doi_index() -> dict[str, str]:
+    """Load DOI index from cache. Does NOT auto-rebuild if missing."""
+    if _INDEX_PATH.exists():
+        with open(_INDEX_PATH, "r", encoding="utf-8") as f:
+            data = _json.load(f)
+        return data.get("dois", {})
+    return {}
+
+
 # ── Collection operations ──
 
 def find_or_create_collection(name: str, parent_name: str = "People") -> str:
@@ -102,11 +166,22 @@ def list_collections() -> list[dict]:
 # ── Item operations ──
 
 def find_by_doi(doi: str) -> str | None:
-    """Search by DOI, return item key or None. Skips attachments and notes."""
+    """Search by DOI, return item key or None. Skips attachments and notes.
+
+    Uses local DOI index (cache/doi_index.json). Falls back to API q-search
+    if index is missing (less reliable — Zotero API q does not index DOI field).
+    """
     if not doi:
         return None
-    zot = _client()
     doi = doi.lower().strip()
+
+    # Try local index first (fast, reliable)
+    index = _load_doi_index()
+    if index:
+        return index.get(doi)
+
+    # Fallback: API q-search (unreliable for DOI, but better than nothing)
+    zot = _client()
     try:
         results = zot.items(q=doi, limit=10)
     except Exception:
@@ -265,6 +340,49 @@ def has_pdf_attachment(item_key: str) -> bool:
         c.get("data", {}).get("contentType") == "application/pdf"
         for c in children
     )
+
+
+def resolve_local_pdf(doi: str) -> str | None:
+    """按 DOI 精确查找本地 Zotero 存储的 PDF 文件路径。
+
+    流程: find_by_doi → get_children → 拼 storage/{att_key}/ → 验证文件存在。
+    不信任 Zotero 附件记录，必须 os.path.isfile 验证磁盘上真有 PDF。
+    首次使用自动构建 DOI 索引（~60s），后续读缓存（秒级）。
+
+    Returns:
+        PDF 绝对路径 if found, None otherwise.
+    """
+    import os
+
+    doi = doi.lower().strip()
+    item_key = find_by_doi(doi)
+
+    # If no hit and no index cache, build it then retry
+    if not item_key and not _INDEX_PATH.exists():
+        build_doi_index()
+        item_key = find_by_doi(doi)
+
+    if not item_key:
+        return None
+
+    children = get_children(item_key)
+    storage = get_storage_path()
+    if not storage:
+        return None
+
+    for child in children:
+        cd = child.get("data", {})
+        if cd.get("contentType") != "application/pdf":
+            continue
+        att_key = child["key"]
+        dir_path = os.path.join(storage, att_key)
+        if not os.path.isdir(dir_path):
+            continue
+        pdfs = [f for f in os.listdir(dir_path) if f.lower().endswith(".pdf")]
+        if pdfs:
+            return os.path.join(dir_path, pdfs[0])
+
+    return None
 
 
 def assign_to_collection(item_key: str, collection_key: str):
@@ -514,17 +632,3 @@ def _attach_cloud(item_key: str, pdf_path: Path) -> str:
     return att_key
 
 
-def resolve_local_pdf(att_key: str) -> str:
-    """Resolve local storage path for an attachment, if the PDF exists.
-
-    Returns path string or empty string.
-    """
-    storage = get_storage_path()
-    if not storage or not att_key:
-        return ""
-    local_dir = Path(storage) / att_key
-    if local_dir.exists():
-        pdfs = list(local_dir.glob("*.pdf"))
-        if pdfs:
-            return str(pdfs[0])
-    return ""

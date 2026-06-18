@@ -20,8 +20,10 @@ python -m lit scholar <URL>           # 抓取 Scholar → 注册 Zotero
 python -m lit scholar <URL> --scrape-only  # 仅抓取，不注册
 python -m lit import <DOI/URL>         # 注册 Zotero → 自动快速下载 PDF（Sci-Hub CDP, ≤2021）
 python -m lit import <image_path>      # 图片 OCR → 注册 Zotero → 自动快速下载
+python -m lit pdf <DOI>                # 查本地 PDF → 没有则下载（输出文件路径）
+python -m lit pdf <DOI> --no-download  # 仅查本地，不触发下载
 python -m lit digest <collection>      # 读 Zotero → 生成消化报告
-python -m lit maintain [--collection "Ji-Xin Cheng"] [--fix]  # 文件库健康检查与清理
+python -m lit maintain [--collection "Ji-Xin Cheng"] [--fix]  # 文件库健康检查与清理 + DOI索引刷新
 python -m lit parse <pdf_path> [--output <md>] [--item-key <key>]  # MinerU 解析 + 可选 bibliography
 python -m lit qr <DOI>                # 生成 QR 码
 python -m lit download <DOI>           # [已废弃] 用 `lit import` 替代
@@ -154,10 +156,4 @@ PYTHONIOENCODING=utf-8 python "pdf_parser.py" "path"    # 解析
 || `references/mineru-api.md` | MinerU PDF 解析 API 说明 |
 || `references/merge-notes.md` | 合并/PR 记录 |
 
-## TODO / Ideas
 
-### 被引链接图（Citation Map）
-
-检测库内论文的互相引用关系。每篇 .md（DOI 命名）的参考文献段落扫描 DOI，跟库里已有的 DOI 交叉匹配，生成引用网络数据。库够大（跨多个学者、整个领域）时价值显著，单学者仅自引意义不大。
-
-**条件成熟再动手。**

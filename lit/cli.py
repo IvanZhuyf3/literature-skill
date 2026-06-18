@@ -78,6 +78,11 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("qr", help="生成 DOI QR 码")
     p.add_argument("doi", help="DOI")
 
+    # ── pdf ──
+    p = sub.add_parser("pdf", help="按 DOI 查本地 PDF（没有则下载）")
+    p.add_argument("doi", help="DOI（精确匹配）")
+    p.add_argument("--no-download", action="store_true", help="仅查本地，不下载")
+
     return parser
 
 
@@ -156,6 +161,25 @@ def main():
         out_dir = str(Path(__file__).resolve().parent.parent / "download" / "temp")
         out = _qr(args.doi, out_dir)
         print(f"  QR code: {out}")
+
+    elif args.command == "pdf":
+        from lit.core.zotero import resolve_local_pdf
+        from lit.download.quick_download import run as quick_run
+
+        pdf_path = resolve_local_pdf(args.doi)
+        if pdf_path:
+            print(pdf_path)
+        elif args.no_download:
+            console.print("[red]本地未找到[/red]")
+            sys.exit(1)
+        else:
+            console.print("[dim]本地未找到，尝试下载...[/dim]")
+            pdf_path = quick_run(args.doi)
+            if pdf_path:
+                print(str(pdf_path))
+            else:
+                console.print("[red]下载失败[/red]")
+                sys.exit(1)
 
 
 if __name__ == "__main__":
