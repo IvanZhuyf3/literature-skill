@@ -44,30 +44,41 @@ def _api_headers() -> dict[str, str]:
     }
 
 
-# ── Local SQLite (read-only, copy first to avoid lock) ──
+# ── Local SQLite (read-only, mtime-cached copy) ──
 
-def _local_db() -> tuple[sqlite3.Connection, Path] | None:
-    """Copy zotero.sqlite to temp and return (conn, temp_path) for read-only query.
+_DB_TMP_PATH = Path(__import__("tempfile").gettempdir()) / "lit_zotero_query.sqlite"
 
-    Copies the DB to avoid lock conflicts with the running Zotero client.
-    Caller is responsible for conn.close() + temp_path.unlink().
+
+def _local_db() -> sqlite3.Connection | None:
+    """Return a read-only connection to a cached copy of zotero.sqlite.
+
+    Copies the DB once to avoid lock conflicts with the running Zotero client.
+    On subsequent calls, compares source mtime vs copy mtime (copy2 preserves
+    source mtime) — skips re-copy if unchanged. Fixed temp path, no accumulation.
+
+    Caller must conn.close() (do NOT delete the file — it's reused).
     Returns None if zotero.sqlite not found.
     """
     import shutil
-    import tempfile
 
     storage = get_storage_path()
     if not storage:
         return None
-    db_path = Path(storage).parent / "zotero.sqlite"
-    if not db_path.exists():
+    src = Path(storage).parent / "zotero.sqlite"
+    if not src.exists():
         return None
 
-    tmp_path = Path(tempfile.gettempdir()) / "lit_zotero_query.sqlite"
-    shutil.copy2(db_path, tmp_path)
-    conn = sqlite3.connect(str(tmp_path))
+    need_copy = True
+    if _DB_TMP_PATH.exists():
+        if _DB_TMP_PATH.stat().st_mtime == src.stat().st_mtime:
+            need_copy = False
+
+    if need_copy:
+        shutil.copy2(src, _DB_TMP_PATH)
+
+    conn = sqlite3.connect(str(_DB_TMP_PATH))
     conn.row_factory = sqlite3.Row
-    return conn, tmp_path
+    return conn
 
 
 # ── Collection operations ──
@@ -139,9 +150,8 @@ def find_by_doi(doi: str) -> str | None:
     doi = doi.lower().strip()
 
     # Try local SQLite first (fast, reliable)
-    result = _local_db()
-    if result:
-        conn, tmp = result
+    conn = _local_db()
+    if conn:
         try:
             row = conn.execute("""
                 SELECT i.key
@@ -158,7 +168,6 @@ def find_by_doi(doi: str) -> str | None:
             pass  # schema mismatch or query error → fallback
         finally:
             conn.close()
-            tmp.unlink(missing_ok=True)
 
     # Fallback: API q-search (unreliable for DOI, but better than nothing)
     zot = _client()
@@ -334,10 +343,9 @@ def resolve_local_pdf(doi: str) -> str | None:
     import os
 
     doi = doi.lower().strip()
-    result = _local_db()
-    if not result:
+    conn = _local_db()
+    if not conn:
         return None
-    conn, tmp = result
 
     try:
         rows = conn.execute("""
@@ -355,7 +363,6 @@ def resolve_local_pdf(doi: str) -> str | None:
         return None
     finally:
         conn.close()
-        tmp.unlink(missing_ok=True)
 
     storage = get_storage_path()
     if not storage:
