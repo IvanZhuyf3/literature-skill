@@ -1,0 +1,103 @@
+"""
+Helper bridge: runs Sci-Hub download under a host Python that has a working
+cloudscraper (DDoS-Guard bypass).  Called as a subprocess from scihub.py
+when the venv's cloudscraper fails.
+
+Usage:
+    <host-python> scihub_bridge.py <doi> [base_url]
+
+Output (stdout):
+    SUCCESS:/path/to/pdf   or   NOT_FOUND   or   ERROR:message
+
+Exit code: 0 on success, 1 on failure.
+"""
+import sys
+import json
+import re
+from pathlib import Path
+
+try:
+    import cloudscraper
+except ImportError:
+    # When invoked from the host Python, cloudscraper must be available.
+    print("ERROR:cloudscraper not available in host Python")
+    sys.exit(1)
+
+
+def _download(doi: str, base_url: str) -> str:
+    """Try Sci-Hub download, returns path string or empty."""
+    scraper = cloudscraper.create_scraper()
+    url = f"{base_url.rstrip('/')}/{doi.lstrip('/')}"
+    resp = scraper.get(url, timeout=30, allow_redirects=True)
+    resp.raise_for_status()
+
+    ct = resp.headers.get("Content-Type", "").lower()
+
+    # Direct PDF response
+    if "application/pdf" in ct or (ct.startswith("application/") and "pdf" in ct):
+        return _save(resp.content, doi)
+
+    # Check body for "not available"
+    body_lower = resp.text[:2000].lower()
+    for pat in ("not available", "not found", "doesn't exist",
+                "no paper", "sci-hub doesn't have this paper",
+                "could not retrieve"):
+        if pat in body_lower:
+            return ""
+
+    # Extract PDF URL
+    pdf_url = None
+    for pat in (
+        r'citation_pdf_url.*?content=["\']([^"\']+)',
+        r'<object[^>]*data=["\']([^"\']+\.pdf)["\']',
+        r'<embed[^>]*src=["\']([^"\']+\.pdf)["\']',
+        r'class=["\']download["\'][^>]*>.*?<a[^>]*href=["\']([^"\']+\.pdf)',
+    ):
+        m = re.search(pat, resp.text, re.IGNORECASE | re.DOTALL)
+        if m:
+            pdf_url = m.group(1)
+            break
+
+    if not pdf_url:
+        # Maybe raw PDF in body
+        if resp.content[:4] == b"%PDF":
+            return _save(resp.content, doi)
+        return ""
+
+    if pdf_url.startswith("//"):
+        pdf_url = "https:" + pdf_url
+    elif pdf_url.startswith("/"):
+        pdf_url = base_url.rstrip("/") + pdf_url
+
+    pdf_resp = scraper.get(pdf_url, timeout=30, allow_redirects=True)
+    pdf_resp.raise_for_status()
+    if pdf_resp.content[:4] == b"%PDF":
+        return _save(pdf_resp.content, doi)
+    return ""
+
+
+def _save(data: bytes, doi: str) -> str:
+    """Save to temp dir, return path."""
+    out_dir = Path.home() / "Downloads" / "temp"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    safe = re.sub(r'[\\/:*?"<>|]', "_", doi)[:60]
+    path = out_dir / f"scihub_{safe}.pdf"
+    path.write_bytes(data)
+    return str(path)
+
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("ERROR:usage: scihub_bridge.py <doi> [base_url]")
+        sys.exit(1)
+    doi = sys.argv[1]
+    base_url = sys.argv[2] if len(sys.argv) > 2 else "https://sci-hub.ru"
+    try:
+        result = _download(doi, base_url)
+        if result:
+            print(f"SUCCESS:{result}")
+        else:
+            print("NOT_FOUND")
+    except Exception as e:
+        print(f"ERROR:{type(e).__name__}:{e}")
+        sys.exit(1)

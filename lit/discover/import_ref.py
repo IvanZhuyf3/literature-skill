@@ -1,11 +1,12 @@
 """
-lit/discover/cite.py — Single paper import module.
+lit/discover/import_ref.py — 单篇论文导入 Zotero（仅注册，不下载）。
 
-Handles DOI/URL or image file input, extracts metadata, registers to Zotero,
-and optionally downloads PDF.
+只做一件事：输入 DOI / URL / 图片路径，提取 metadata → Zotero 去重 → 创建条目。
+不碰任何下载逻辑。若要同时下载 PDF，由 CLI 层编排 quick_download。
 
 Public function:
-    run(source: str, download: bool = False) -> dict
+    run(source: str) -> dict
+        返回 {"item_key", "doi", "title", "url", "dup", "year"}
 """
 
 from __future__ import annotations
@@ -20,7 +21,6 @@ from rich.console import Console
 from lit.core.config import load as get_config
 from lit.core.crossref import fetch_metadata, resolve_doi
 from lit.core.zotero import (
-    attach_pdf,
     check_duplicate,
     create_item,
 )
@@ -234,74 +234,36 @@ def _extract_from_image(image_path: str) -> dict:
     return {}
 
 
-def _download_and_attach(doi: str, item_key: str) -> str | None:
-    """Download PDF via ``lit.download.engine`` and attach to Zotero item."""
-    url = resolve_doi(doi)
-    if not url:
-        console.print("[yellow]⚠ Could not resolve DOI to a landing URL.[/yellow]")
-        return None
-
-    try:
-        from lit.download.engine import download_pdf  # noqa: F811
-
-        pdf_path = download_pdf(url)
-    except ImportError:
-        console.print(
-            "[yellow]⚠ lit.download.engine not available yet — "
-            "PDF download skipped. Install the download module or use "
-            "``main.py`` directly.[/yellow]"
-        )
-        return None
-    except Exception as e:
-        console.print(f"[yellow]⚠ PDF download failed: {e}[/yellow]")
-        return None
-
-    if not pdf_path:
-        console.print("[yellow]⚠ PDF download produced no file path.[/yellow]")
-        return None
-
-    try:
-        att_key = attach_pdf(item_key, Path(str(pdf_path)))
-        return att_key
-    except Exception as e:
-        console.print(f"[yellow]⚠ PDF attachment failed: {e}[/yellow]")
-        return None
-
-
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
 
-def run(source: str, download: bool = False) -> dict:
+def run(source: str) -> dict:
     """
-    Import a single paper into Zotero.
+    Import a single paper citation into Zotero (no PDF download).
 
     Args:
         source: DOI (e.g. ``"10.1038/s41586-023-06139-9"``),
-                URL (e.g. ``"https://doi.org/10.1038/..."`` or a publisher
-                landing page), or a path to an image file (screenshot or photo
-                containing citation text, supported extensions:
-                ``.png`` / ``.jpg`` / ``.jpeg``).
-        download: If ``True``, also download the PDF and attach it to the
-                  newly created Zotero item.  Requires
-                  ``lit.download.engine.download_pdf`` to be available
-                  (not yet implemented — will log a clear message if missing).
+                URL (e.g. ``"https://doi.org/10.1038/..."``), or a path to an
+                image file (``.png`` / ``.jpg`` / ``.jpeg``).
 
     Returns:
         A dict with keys:
             ``item_key`` (str | None) — Zotero item key
-            ``att_key``  (str | None) — Attachment key if PDF downloaded
-            ``doi``      (str | None) — DOI found (for downstream use)
+            ``doi``      (str | None) — DOI found
             ``title``    (str | None) — Paper title
+            ``url``      (str | None) — Landing page URL
+            ``year``     (str | None) — Publication year (for downstream use)
             ``dup``      (bool)       — ``True`` if the item already existed
                                          in Zotero (no changes made)
     """
     result: dict = {
         "item_key": None,
-        "att_key": None,
         "doi": None,
         "title": None,
+        "url": None,
+        "year": None,
         "dup": False,
     }
 
@@ -309,7 +271,7 @@ def run(source: str, download: bool = False) -> dict:
 
     source_type, source_value = _normalize_source(source)
     trunc = source[:80] + ("..." if len(source) > 80 else "")
-    console.print(f"\n[bold cyan]━━━ cite: {trunc} ━━━[/bold cyan]\n")
+    console.print(f"\n[bold cyan]━━━ import_ref: {trunc} ━━━[/bold cyan]\n")
     console.print(f"[bold]Detected source type:[/bold] {source_type}")
 
     # ── Step 1: Extract metadata ──────────────────────────────────────────
@@ -317,7 +279,7 @@ def run(source: str, download: bool = False) -> dict:
     meta: dict = {}
 
     if source_type == "image":
-        console.print("[bold]Step 1/4:[/bold] Extracting citation from image via OCR...")
+        console.print("[bold]Step 1/3:[/bold] Extracting citation from image via OCR...")
         meta = _extract_from_image(source_value)
         if not meta.get("DOI"):
             console.print("[red]No DOI could be extracted from the image. Aborting.[/red]")
@@ -325,7 +287,7 @@ def run(source: str, download: bool = False) -> dict:
 
     elif source_type == "doi":
         doi = source_value
-        console.print(f"[bold]Step 1/4:[/bold] Fetching CrossRef metadata for DOI {doi}...")
+        console.print(f"[bold]Step 1/3:[/bold] Fetching CrossRef metadata for DOI {doi}...")
         cr = fetch_metadata(doi)
         if cr:
             meta = {
@@ -352,7 +314,7 @@ def run(source: str, download: bool = False) -> dict:
                 meta["DOI"] = doi
 
     elif source_type == "url":
-        console.print("[bold]Step 1/4:[/bold] Extracting metadata from URL...")
+        console.print("[bold]Step 1/3:[/bold] Extracting metadata from URL...")
         meta = _extract_metadata_from_html(source_value)
         # Also check if the URL itself contains a DOI
         embedded = _extract_doi_from_text(source_value)
@@ -380,12 +342,14 @@ def run(source: str, download: bool = False) -> dict:
 
     result["doi"] = meta.get("DOI", "")
     result["title"] = meta.get("title", "")
+    result["url"] = meta.get("url", "")
+    result["year"] = str(meta.get("year", ""))
     console.print(f"  Title: {result['title'][:80] if result['title'] else '?'}")
     console.print(f"  DOI:   {result['doi'] or 'N/A'}")
 
-    # ── Step 2: Dedup + Create Zotero item ────────────────────────────────
+    # ── Step 2: Dedup ────────────────────────────────────────────────────
 
-    console.print(f"\n[bold]Step 2/4:[/bold] Checking for duplicates in Zotero...")
+    console.print(f"\n[bold]Step 2/3:[/bold] Checking for duplicates in Zotero...")
 
     dup_key, dup_reason = check_duplicate(
         doi=meta.get("DOI", ""),
@@ -401,7 +365,8 @@ def run(source: str, download: bool = False) -> dict:
         result["item_key"] = dup_key
         result["dup"] = True
     else:
-        console.print("[bold]Step 3/4:[/bold] Creating Zotero item...")
+        # ── Step 3: Create Zotero item ───────────────────────────────────
+        console.print("[bold]Step 3/3:[/bold] Creating Zotero item...")
         try:
             item_key = create_item(meta)
             result["item_key"] = item_key
@@ -410,27 +375,12 @@ def run(source: str, download: bool = False) -> dict:
             console.print(f"[red]Failed to create Zotero item: {e}[/red]")
             return result
 
-    # ── Step 4: Download PDF (optional) ───────────────────────────────────
-
-    if download and result["doi"]:
-        console.print(f"\n[bold]Step 4/4:[/bold] Downloading and attaching PDF...")
-        att_key = _download_and_attach(result["doi"], result["item_key"])
-        if att_key:
-            result["att_key"] = att_key
-            console.print(f"[green]✓ PDF attached:[/green] {att_key}")
-        else:
-            console.print("[yellow]⚠ PDF download/attach did not complete.[/yellow]")
-    elif download:
-        console.print("[yellow]⚠ No DOI available — cannot download PDF.[/yellow]")
-
     # ── Summary ───────────────────────────────────────────────────────────
 
     console.print(f"\n[bold green]━━━ Done! ━━━[/bold green]")
     console.print(f"  Item:  {result['item_key']}")
     console.print(f"  Title: {result['title'][:80] if result['title'] else '?'}")
     console.print(f"  DOI:   {result['doi'] or 'N/A'}")
-    if result["att_key"]:
-        console.print(f"  PDF:   {result['att_key']}")
     if result["dup"]:
         console.print(f"  [yellow](existing item — no changes made)[/yellow]")
 

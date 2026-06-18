@@ -1,0 +1,228 @@
+"""
+lit/download/scihub.py — Sci-Hub PDF download module.
+
+Tries to fetch a paper PDF from a Sci-Hub mirror via plain HTTP GET.
+No browser/CDP needed — Sci-Hub pages are simple enough for requests.
+
+Usage:
+    from lit.download.scihub import try_scihub
+    pdf_path = try_scihub("10.1234/example")
+    # -> Path to downloaded PDF, or None
+"""
+from __future__ import annotations
+
+import logging
+import os
+import re
+from pathlib import Path
+
+import cloudscraper
+import requests
+
+logger = logging.getLogger(__name__)
+
+_SCI_HUB_BASE = "https://sci-hub.ru"
+_MAX_YEAR = 2021       # only try papers published <= this year
+_DOWNLOAD_DIR: Path | None = None  # set from config
+
+
+def _is_old_enough(year_str: str | int | None) -> bool:
+    """Check if a year <= 2021 (Sci-Hub's sweet spot)."""
+    if year_str is None:
+        return False
+    try:
+        year = int(str(year_str).strip()[:4])
+        return year <= _MAX_YEAR
+    except (ValueError, TypeError):
+        return False
+
+
+def _config() -> dict:
+    """Get scihub config from config.yaml, with defaults."""
+    from lit.core.config import load as get_config
+    cfg = get_config()
+    s = cfg.get("scihub", {})
+    return {
+        "base_url": s.get("base_url", _SCI_HUB_BASE),
+        "max_year": s.get("max_year", _MAX_YEAR),
+        "download_dir": s.get(
+            "download_dir",
+            cfg.get("download", {}).get("temp_dir", ""),
+        ),
+    }
+
+
+def try_scihub(
+    doi: str,
+    year: str | int | None = None,
+) -> Path | None:
+    """
+    Try to download a paper PDF from Sci-Hub.
+
+    Args:
+        doi: The DOI string (e.g. "10.1038/s41586-023-06139-9").
+        year: Publication year. If given and > max_year, skips Sci-Hub.
+
+    Returns:
+        ``Path`` to the downloaded PDF, or ``None`` if Sci-Hub didn't have it.
+    """
+    cfg = _config()
+    base_url = cfg["base_url"]
+    download_dir = cfg.get("download_dir", "")
+
+    # Year gate
+    if year is not None and not _is_old_enough(year):
+        logger.info("Sci-Hub: skipped (year %s > %d)", year, _MAX_YEAR)
+        return None
+
+    if not doi:
+        logger.info("Sci-Hub: skipped (no DOI)")
+        return None
+
+    # Build Sci-Hub URL
+    url = f"{base_url.rstrip('/')}/{doi.lstrip('/')}"
+    logger.info("Sci-Hub: trying %s", url)
+
+    # Fetch (use cloudscraper to bypass DDoS-Guard JS challenge)
+    try:
+        scraper = cloudscraper.create_scraper()
+        resp = scraper.get(
+            url,
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/120.0.0.0 Safari/537.36"
+                ),
+                "Accept": "text/html,*/*;q=0.9",
+            },
+            timeout=30,
+            allow_redirects=True,
+        )
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        logger.warning("Sci-Hub: HTTP error for %s: %s (status=%s)", doi, e,
+                       getattr(e, 'response', None) and e.response.status_code)
+
+    # Detect: is the response a PDF or an HTML page?
+    content_type = resp.headers.get("Content-Type", "").lower()
+
+    if "application/pdf" in content_type or (
+        content_type.startswith("application/")
+        and "pdf" in content_type
+    ):
+        # Direct PDF - save it
+        return _save_pdf(resp.content, doi, download_dir)
+
+    # Check HTML body for "not available" indicators
+    text = resp.text[:2000].lower()
+    not_found_patterns = [
+        "not available",
+        "not found",
+        "doesn't exist",
+        "no paper",
+        "sci-hub doesn't have this paper",
+        "this paper is not available",
+        "could not retrieve",
+    ]
+    if any(p in text for p in not_found_patterns):
+        logger.info("Sci-Hub: paper not available for %s", doi)
+        return None
+
+    # Sci-Hub embeds the PDF via one of several patterns.
+    # New layout (2025+): <meta name="citation_pdf_url" content="...pdf">
+    # Older layout: <object data="...pdf"> or <embed src="...pdf">
+    # Legacy: download link in a class="download" anchor.
+    pdf_url = None
+
+    # Priority 1: citation_pdf_url meta tag (current Sci-Hub layout)
+    meta_match = re.search(
+        r'<meta\s+name=["\']citation_pdf_url["\']\s+content=["\']([^"\']+)["\']',
+        resp.text,
+        re.IGNORECASE,
+    )
+    if meta_match:
+        pdf_url = meta_match.group(1)
+
+    # Priority 2: <object data="...pdf" type="application/pdf">
+    if not pdf_url:
+        obj_match = re.search(
+            r'<object[^>]*type=["\']application/pdf["\'][^>]*data=["\']([^"\']+)["\']',
+            resp.text,
+            re.IGNORECASE,
+        )
+        if obj_match:
+            pdf_url = obj_match.group(1)
+
+    # Priority 3: <embed src="...pdf" type="application/pdf">
+    if not pdf_url:
+        embed_match = re.search(
+            r'<embed[^>]*type=["\']application/pdf["\'][^>]*src=["\']([^"\']+)["\']',
+            resp.text,
+            re.IGNORECASE,
+        )
+        if embed_match:
+            pdf_url = embed_match.group(1)
+
+    # Priority 4: download link .download a[href*=".pdf"]
+    if not pdf_url:
+        dl_match = re.search(
+            r'class=["\']download["\'][^>]*>.*?<a[^>]*href=["\']([^"\']+\.pdf[^"\']*)["\']',
+            resp.text,
+            re.IGNORECASE | re.DOTALL,
+        )
+        if dl_match:
+            pdf_url = dl_match.group(1)
+
+    if pdf_url:
+        # Make absolute URL
+        if pdf_url.startswith("//"):
+            pdf_url = "https:" + pdf_url
+        elif pdf_url.startswith("/"):
+            pdf_url = base_url.rstrip("/") + pdf_url
+
+        logger.info("Sci-Hub: fetching PDF from: %s", pdf_url)
+        try:
+            # Use same cloudscraper session (bypassed DDoS-Guard already)
+            pdf_resp = scraper.get(
+                pdf_url,
+                timeout=30,
+                allow_redirects=True,
+            )
+            pdf_resp.raise_for_status()
+            if pdf_resp.content[:4] == b"%PDF":
+                return _save_pdf(pdf_resp.content, doi, download_dir)
+        except requests.RequestException:
+            logger.warning("Sci-Hub: PDF fetch failed from %s", pdf_url)
+            return None
+
+    # Fallback: whole response body might be the PDF itself
+    if resp.content[:4] == b"%PDF":
+        return _save_pdf(resp.content, doi, download_dir)
+
+    # We have HTML but couldn't find a PDF - likely DDoS-Guard challenge or captcha
+    if "DDoS-Guard" in resp.text[:500]:
+        logger.info("Sci-Hub: DDoS-Guard challenge - skipping")
+        return None
+    logger.info("Sci-Hub: response is HTML and no PDF found - skipping")
+    logger.debug("Page title: %s", resp.text[200:400].replace("\n", " ").strip()[:120])
+    return None
+
+
+def _save_pdf(data: bytes, doi: str, dir_path: str = "") -> Path:
+    """Save PDF bytes to a file, returns Path."""
+    if dir_path:
+        out_dir = Path(dir_path)
+    else:
+        out_dir = Path(
+            _DOWNLOAD_DIR or os.path.expanduser("~/Downloads/temp")
+        )
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    safe_doi = re.sub(r'[\\/:*?"<>|]', "_", doi)[:60]
+    fn = f"scihub_{safe_doi}.pdf"
+    out_path = out_dir / fn
+
+    out_path.write_bytes(data)
+    logger.info("Sci-Hub: saved to %s", out_path)
+    return out_path
