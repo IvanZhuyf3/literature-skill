@@ -363,12 +363,25 @@ def _attach_webdav(item_key: str, pdf_path: Path) -> str:
     import shutil
     import requests as req
 
+    import hashlib
+    from datetime import datetime, timezone
+
     filename = pdf_path.name
+    # Compute md5 and mtime for Zotero to locate the file
+    md5_hash = hashlib.md5()
+    with open(pdf_path, "rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            md5_hash.update(chunk)
+    mtime_ts = int(pdf_path.stat().st_mtime * 1000)  # Zotero expects milliseconds
+
     payload = [{
         "itemType": "attachment",
         "linkMode": "imported_file",
         "contentType": "application/pdf",
         "title": filename,
+        "filename": filename,
+        "md5": md5_hash.hexdigest(),
+        "mtime": mtime_ts,
         "parentItem": item_key,
     }]
 
@@ -378,10 +391,12 @@ def _attach_webdav(item_key: str, pdf_path: Path) -> str:
 
     result = resp.json()
     if result.get("failed"):
-        msg = result["failed"][0].get("message", "Unknown")
+        first_key = next(iter(result["failed"]))
+        msg = result["failed"][first_key].get("message", "Unknown")
         raise RuntimeError(f"Attachment creation failed: {msg}")
 
-    att_key = result["successful"][0]["data"]["key"]
+    first_success = next(iter(result["successful"]))
+    att_key = result["successful"][first_success]["data"]["key"]
 
     # Copy PDF to local Zotero storage
     storage = get_storage_path()
