@@ -44,11 +44,39 @@ python -m lit qr <DOI>
 python -m lit download <DOI>   # 用 `lit import` 替代
 ```
 
+## 下载架构（两层）
+
+PDF 下载是两层设计，缺一不可：
+
+### 第一层：快速免费通道（`quick_download.py`）
+- **定位**：低资源占用、低成功率的"先试一把"通道
+- **当前方法**：Sci-Hub CDP（`scihub_cdp.py`），利用已有 Edge CDP 连接，5s 过 DDoS-Guard
+- **预期覆盖率**：~50%。Sci-Hub 最大年份 2021，且不覆盖所有出版商
+- **未来扩展**：Unpaywall、PMC、CORE 等 OA 源会注册到 `_METHODS` 列表
+- **特点**：不开新浏览器 tab、不导航到出版商页面、不模拟阅读，秒级返回
+
+### 第二层：出版商适配器（`engine.py` + `publisher/*.py`）— 兜底系统
+- **定位**：几乎必需的兜底通道，覆盖快速通道拿不到的 ~50% 文献
+- **原理**：通过 CDP 连接已有 Edge（带机构登录态），导航到出版商页面，
+  用每个出版商专属的 CSS 选择器定位 PDF 按钮并下载
+- **27 个 adapter**：aaas, acs, aip, aps, biorxiv, bmj, elife, elsevier,
+  frontiers, ieee, iop, jci_insight, lww, mdpi, npg, optica, pmc, pnas,
+  royalsociety, rsc, sage, spie, springer, tandf, wiley, wulixb
+- **选择器**：除 ACS 外全部硬编码在各 adapter 的 `find_download_element()` 中。
+  `config.yaml` 的 `publishers:` 块仅 ACS 有（调试残留），其余 adapter 不读 config
+- **engine.py 内部 fallback**：CDP + adapter 失败 → 调 `main.py` 子进程重试
+
+### ⚠ 当前断链
+`lit import` 目前只调 `quick_download`，Sci-Hub 失败后直接放弃，
+**没有接上 `engine.py`**。deprecated 的 `lit download` 才走 publisher adapter。
+需要把 publisher adapter 作为 fallback 接入 `lit import` 和 `lit pdf` 的流程。
+
 ## 架构关键变更
 
 - **`lit/discover/cite.py` → `import_ref.py`**：只做 Zotero 条目注册，不碰下载
-- **`lit/download/quick_download.py`**：编排器，按序调各平台下载方法
+- **`lit/download/quick_download.py`**：第一层编排器，按序调各免费源
 - **`lit/download/scihub_cdp.py`**：Edge CDP 过 DDoS-Guard，替代旧的 cloudscraper 版
+- **`lit/download/engine.py`**：第二层 publisher adapter 引擎（27 个适配器）
 - **元数据统一从 Zotero 拉**：`zotero.py` 新增 `fetch_item()` 和 `item_to_meta()`
 - **`lit parse --item-key <key>`**：解析 PDF 时从 Zotero 拉 bibliography
 - **DOI 作为 .md 文件名**：`format_doi_filename()` 实现，天然去重
@@ -66,9 +94,11 @@ python -m lit download <DOI>   # 用 `lit import` 替代
 - `lit/core/zotero.delete_item()`：必须先 `fetch` item 拿 version info 再删（pyzotero 要求）
 - Chromium 手动启动（`--remote-debugging-port=19222`），有机构登录状态
 - Windows Hyper-V 可能保留端口 9222，用 19222 避免冲突
-- 旧版入口（`main.py`, `zot.py`, `people.py`）代码保留兼容但不再主动维护
-- `lit/download/engine.py` 有 fallback：CDP + adapter 失败时调 `main.py` 子进程
+- 旧版入口（`main.py`, `zot.py`, `people.py`）代码保留兼容，`engine.py` 失败时作为子进程 fallback 调 `main.py`
+- **下载两层架构**：quick_download（Sci-Hub 等免费源，~50% 覆盖）→ publisher adapter（27 个出版商适配器，兜底）。详见上方"下载架构"节
+- `lit import` 当前**缺少**第二层 fallback：quick_download 失败后没接 engine.py（已知 TODO）
 - Sci-Hub CDP 下载：DDoS-Guard 需~5s 解析，`wait_for_load_state("domcontentloaded")` + 轮询 title
+- Publisher adapter 选择器维护：出版商改版 DOM 后选择器会失效，需 CDP 探测新选择器（流程见 `references/maintain.md`）
 
 ## TODO / Ideas（未排期）
 
