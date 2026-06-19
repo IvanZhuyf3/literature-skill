@@ -3,6 +3,7 @@ lit/download/preprint.py — arXiv 预印本直连下载。
 
 arXiv 无反爬，URL 可预测，纯 HTTP 秒级下载。
 bioRxiv/medRxiv 有 Cloudflare 保护，纯 HTTP 会被 403，需要走 attach（CDP adapter）。
+ChemRxiv 无可预测 PDF URL 模式，同理走 attach。
 
 Usage:
     from lit.download.preprint import try_preprint
@@ -31,13 +32,15 @@ def try_preprint(
     doi: str,
     year: str | int | None = None,
 ) -> Path | None:
-    """Download a preprint PDF from bioRxiv/medRxiv/arXiv.
+    """Download a preprint PDF from arXiv.
 
-    Detects the preprint server from the DOI prefix and constructs
-    the direct PDF URL.
+    Only arXiv DOIs (10.48550/arXiv.*) are supported here.
+    Other preprint servers (bioRxiv, medRxiv, ChemRxiv) have
+    anti-bot protection or unpredictable URLs — they need the
+    CDP adapter via ``lit attach``.
 
     Args:
-        doi:  DOI string (e.g. "10.1101/2025.03.26.645466").
+        doi:  DOI string (e.g. "10.48550/arXiv.2603.25534").
         year: Publication year (unused).
 
     Returns:
@@ -64,30 +67,18 @@ def try_preprint(
 
 
 def _get_pdf_urls(doi: str) -> list[str]:
-    """Construct candidate PDF URLs from DOI prefix."""
+    """Construct candidate PDF URLs from DOI prefix.
+
+    Only arXiv is supported — its PDFs are served without anti-bot protection.
+    bioRxiv/medRxiv/ChemRxiv all have Cloudflare or unpredictable URLs;
+    they fall through to attach (CDP adapter).
+    """
     urls = []
-
-    # bioRxiv: 10.1101/...
-    if doi.startswith("10.1101/"):
-        # https://www.biorxiv.org/content/10.1101/2025.03.26.645466v1.full.pdf
-        # Try v1 first (most common), then versionless
-        suffix = doi[len("10.1101/"):]
-        urls.append(f"https://www.biorxiv.org/content/10.1101/{suffix}v1.full.pdf")
-        urls.append(f"https://www.biorxiv.org/content/{doi}v1.full.pdf")
-
-    # medRxiv: 10.1101/... (same prefix, server auto-detects)
-    # bioRxiv and medRxiv share the 10.1101 prefix, handled above
 
     # arXiv DOIs: 10.48550/arXiv.2401.12345
     if doi.startswith("10.48550/arXiv."):
         arxiv_id = doi[len("10.48550/arXiv."):]
         urls.append(f"https://arxiv.org/pdf/{arxiv_id}.pdf")
-
-    # ChemRxiv: 10.26434/chemrxiv-...
-    if doi.startswith("10.26434/chemrxiv"):
-        # ChemRxiv doesn't have a predictable PDF URL pattern
-        # Fall through — Unpaywall or publisher adapter can handle it
-        pass
 
     return urls
 
