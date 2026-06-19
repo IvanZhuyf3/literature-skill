@@ -176,7 +176,7 @@ def deduplicate_papers(papers: list[dict]) -> tuple[list[dict], int]:
 
 def filter_papers(papers: list[dict], cfg: dict) -> list[dict]:
     """Filter out patents and conference proceedings."""
-    pcfg = get_people_config(cfg)
+    pcfg = get_people_config()
     exclude_types = set(pcfg.get("exclude_types", []))
     exclude_venues = pcfg.get("exclude_venues", [])
     all_exclude_venues = set(CONFERENCE_KEYWORDS + (exclude_venues or []))
@@ -245,7 +245,7 @@ def scrape_scholar_profile(
     """
     from chromium_helper import ChromiumHelper
 
-    scfg = get_people_config(cfg)["scholar"]
+    scfg = get_people_config()["scholar"]
     page_delay = scfg["page_delay"]
     max_show_more = scfg["max_show_more"]
 
@@ -425,7 +425,7 @@ def match_dois(papers: list[dict], cfg: dict) -> list[dict]:
         Updated paper list with ``doi``, ``doi_status``, and optionally
         ``doi_score`` fields.
     """
-    scfg = get_people_config(cfg)["scholar"]
+    scfg = get_people_config()["scholar"]
     min_delay = scfg["min_delay"]
     max_delay = scfg["max_delay"]
 
