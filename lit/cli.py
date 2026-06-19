@@ -195,6 +195,7 @@ def main():
         from lit.discover.tracker import find_new_papers
         from lit.discover.import_ref import run as import_run
         from lit.batch.quick import run_single as quick_single
+        from lit.batch.attach import run_single as attach_single
 
         new = find_new_papers(args.author)
         if not new:
@@ -209,13 +210,22 @@ def main():
             for p in new:
                 console.print(f"\n[dim]处理 {p['doi']}...[/dim]")
                 result = import_run(p["doi"])
-                if result.get("item_key"):
-                    quick_single(result["doi"])
+                if not result.get("item_key"):
+                    console.print(f"  [yellow]⚠ 注册失败: {p['doi']}[/yellow]")
+                    continue
+
+                qr = quick_single(result["doi"])
+                if qr and qr["status"] in ("attached", "already_has"):
                     console.print(f"  [green]✓ {p['doi']}[/green]")
                 else:
-                    console.print(f"  [yellow]⚠ 注册失败: {p['doi']}[/yellow]")
+                    console.print(f"  [dim]quick 未命中，尝试 publisher adapter...[/dim]")
+                    ar = attach_single(result["doi"])
+                    if ar and ar["status"] in ("attached", "already_has"):
+                        console.print(f"  [green]✓ {p['doi']} (attach)[/green]")
+                    else:
+                        console.print(f"  [yellow]⚠ 下载失败: {p['doi']}[/yellow]")
         else:
-            console.print("\n使用 --download 自动导入 + 快速下载")
+            console.print("\n使用 --download 自动导入 + 快速下载 + 兜底")
 
 
 if __name__ == "__main__":
