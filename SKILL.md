@@ -34,7 +34,8 @@ python -m lit attach <collection> --limit 5
 python -m lit pdf <DOI>               # 查本地 PDF 路径（不下载）
 
 # === 其他 ===
-python -m lit digest <collection>     # 读 Zotero → 生成消化报告
+python -m lit digest <collection>     # 首次生成消化模板（全量）
+# 增量更新 digest 不用命令——agent 读已有 digest.md → diff Zotero → 手术式更新
 python -m lit parse <pdf> [--item-key <key>]  # MinerU 解析 PDF → Markdown
 python -m lit maintain [--collection X] [--fix]  # 文件库健康检查
 python -m lit qr <DOI>               # 生成 QR 码
@@ -78,6 +79,7 @@ PDF 下载是两个独立命令，agent 按需编排：
 | "只加进 Zotero" | `lit import <DOI>` |
 | "帮我填满这个库的 PDF" | `lit quick <collection>` → `lit attach <collection>` |
 | 收集某学者所有论文 | `lit scholar <URL>` → 清洗 → `lit quick` → `lit attach` → `lit digest` |
+| **"更新 digest"** | 读已有 digest.md → diff Zotero 找新论文 → 逐篇深读 → 手术式更新（详见 `references/digest-workflow.md`） |
 | 图片 OCR 导入 | `lit import <image_path>` → `lit quick <DOI>` → `lit attach <DOI>` |
 
 ## 下载编排（Agent 责任）
