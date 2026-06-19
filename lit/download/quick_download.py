@@ -8,15 +8,13 @@ lit/download/quick_download.py — 快速免费 PDF 下载编排器。
     每个函数签名: fn(doi: str, year: str | int | None) -> Path | None
 
 当前方法链:
-    [0] scihub_cdp — 在已有 Edge 浏览器打开 Sci-Hub，提取 PDF URL 后下载
-    [1] (预留) unpaywall, pmc, core 等
+    [0] Crossref TDM — Crossref API 提取出版商提供的 PDF 直链
+    [1] Sci-Hub (CDP) — Edge CDP 打开 Sci-Hub，提取 PDF URL 后下载（≤2021）
+    [2] Unpaywall — OA 聚合，查合法开放获取的 PDF
 
 Usage:
     from lit.download.quick_download import run
     pdf_path = run("10.1038/s41586-021-03819-2", year="2021")
-
-Public function:
-    run(doi: str, year: str | int | None = None) -> Path | None
 """
 from __future__ import annotations
 
@@ -25,7 +23,9 @@ from pathlib import Path
 
 from rich.console import Console
 
+from lit.download.crossref_tdm import try_crossref_tdm
 from lit.download.scihub_cdp import try_scihub
+from lit.download.unpaywall import try_unpaywall
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -35,8 +35,9 @@ console = Console()
 # 每项: (显示名, 调用函数)
 # 函数签名: (doi: str, year: str | int | None) -> Path | None
 _METHODS: list[tuple[str, callable]] = [
+    ("Crossref TDM", try_crossref_tdm),
     ("Sci-Hub (CDP)", try_scihub),
-    # 未来在此追加: ("Unpaywall", try_unpaywall), ...
+    ("Unpaywall", try_unpaywall),
 ]
 
 
