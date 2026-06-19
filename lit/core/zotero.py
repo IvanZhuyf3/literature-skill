@@ -206,40 +206,44 @@ def check_duplicate(doi: str = "", title: str = "", url: str = "") -> tuple[str 
     """Comprehensive dedup check by DOI, URL, or title.
 
     Returns (item_key, match_reason) if found, (None, None) otherwise.
+
+    DOI lookup uses local SQLite (find_by_doi) — fast and reliable.
+    Falls back to API q-search for title/URL matching.
     """
     zot = _client()
 
-    queries = []
-    if title:
-        queries.append(("title", title[:60]))
+    # ── 1. DOI (primary, reliable — local SQLite) ──
     if doi:
-        queries.append(("DOI", doi))
+        key = find_by_doi(doi)
+        if key:
+            return key, "DOI"
+
+    # ── 2. URL (API q-search fallback) ──
     if url:
-        queries.append(("URL", url.split("?")[0][-60:]))
+        key = find_by_url(url)
+        if key:
+            return key, "URL"
 
-    for label, query in queries:
-        try:
-            results = zot.items(q=query, limit=25)
-        except Exception:
-            continue
-        for item in results:
-            d = item.get("data", {})
-            itype = d.get("itemType", "")
-            item_doi = d.get("DOI", "").lower().strip()
-            item_title = d.get("title", "").strip()
-            item_url = d.get("url", "").strip()
-
-            if doi and item_doi == doi and itype not in ("attachment", "note"):
-                return d["key"], "DOI"
-            if url and item_url == url and itype not in ("attachment", "note"):
-                return d["key"], "URL"
-            if title and item_title and item_title.lower() == title.lower() and itype not in ("attachment", "note"):
-                return d["key"], "title"
-            if itype == "attachment" and title and item_title:
-                if item_title.lower() == title.lower():
-                    parent = d.get("parentItem", "")
-                    if parent:
-                        return parent, "title"
+    # ── 3. Title (API q-search, less reliable) ──
+    if title:
+        queries = [("title", title[:60])]
+        for label, query in queries:
+            try:
+                results = zot.items(q=query, limit=25)
+            except Exception:
+                continue
+            for item in results:
+                d = item.get("data", {})
+                itype = d.get("itemType", "")
+                item_title = d.get("title", "").strip()
+                if itype not in ("attachment", "note") and item_title:
+                    if item_title.lower() == title.lower():
+                        return d["key"], "title"
+                if itype == "attachment" and item_title:
+                    if item_title.lower() == title.lower():
+                        parent = d.get("parentItem", "")
+                        if parent:
+                            return parent, "title"
     return None, None
 
 
@@ -379,15 +383,31 @@ def resolve_local_pdf(doi: str) -> str | None:
     return None
 
 
-def assign_to_collection(item_key: str, collection_key: str):
-    """Assign item to a collection. Idempotent — skips if already assigned."""
+def assign_to_collection(item_key: str, collection_key: str, max_retries: int = 3):
+    """Assign item to a collection. Idempotent — skips if already assigned.
+
+    Retries on Zotero version conflict (409) — re-fetches the item version
+    before re-attempting the update.
+    """
     zot = _client()
-    item = zot.item(item_key)
-    collections = item["data"].get("collections", [])
-    if collection_key not in collections:
+    for attempt in range(max_retries):
+        item = zot.item(item_key)
+        collections = item["data"].get("collections", [])
+        if collection_key in collections:
+            return  # already assigned
         collections.append(collection_key)
         item["data"]["collections"] = collections
-        zot.update_item(item)
+        try:
+            zot.update_item(item)
+            return
+        except Exception as e:
+            if "conflict" in str(e).lower() or "409" in str(e):
+                logger.warning(
+                    "Version conflict on assign_to_collection (attempt %d/%d), retrying...",
+                    attempt + 1, max_retries,
+                )
+                continue
+            raise  # re-raise non-conflict errors
 
 
 def collection_items(collection_key: str) -> list[dict]:
