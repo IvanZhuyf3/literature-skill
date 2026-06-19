@@ -112,6 +112,12 @@ _ADAPTERS: dict[str, type] = {
     "sage": SAGEAdapter,
 }
 
+# Publishers that should never be auto-downloaded (paywall, no institutional access, etc.)
+# Keys = publisher names as returned by detect_publisher()
+_PUBLISHER_BLACKLIST: set[str] = {
+    "spie",  # 10.1117/ — paywall, HTML interstitial instead of PDF
+}
+
 # ──────────────────────────────────────────────────────────────────
 # Helpers
 # ──────────────────────────────────────────────────────────────────
@@ -261,6 +267,12 @@ def download_pdf(url_or_doi: str, timeout: int = 120) -> Path:
     if publisher is None:
         raise RuntimeError("Unknown publisher for URL: %s" % url)
     logger.info("Detected publisher: %s", publisher)
+
+    if publisher in _PUBLISHER_BLACKLIST:
+        raise RuntimeError(
+            "Publisher '%s' is blacklisted (DOI: %s). "
+            "Skipping — no institutional access or paywall." % (publisher, raw)
+        )
 
     # ── 3. Direct CDP + adapter flow ─────────────────────────
     try:
