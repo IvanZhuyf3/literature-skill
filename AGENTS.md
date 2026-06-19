@@ -43,11 +43,13 @@ python -m lit track <author> [--download]
 下载是两个独立命令，各管一层。`lit import` 只注册，不碰下载。Agent 编排执行顺序。
 
 ### lit quick — 快速通道
-- **模块**：`lit/batch/quick.py` → `lit/download/quick_download.py` → `scihub_cdp.py`
+- **模块**：`lit/batch/quick.py` → `lit/download/quick_download.py`
 - **定位**：低资源、低成功率的"先试一把"通道
-- **当前方法**：Sci-Hub CDP，5s 过 DDoS-Guard，秒级返回
-- **覆盖率**：~50%（Sci-Hub 最大年份 2021）
-- **未来扩展**：Unpaywall、PMC、CORE 等 OA 源注册到 `_METHODS` 列表
+- **方法链**（`_METHODS` 列表，按序尝试）：
+  1. **Crossref TDM**（`crossref_tdm.py`）：查 Crossref API `link[]` 提取出版商提供的 PDF 直链。无年份限制
+  2. **Sci-Hub CDP**（`scihub_cdp.py`）：Edge CDP 过 DDoS-Guard，≤2021 年
+  3. **Unpaywall**（`unpaywall.py`）：OA 聚合，查 `best_oa_location` 下载合法开放获取 PDF。无年份限制。需 `unpaywall.email`（config，非必需）
+- **三者都不需要 API key**
 
 ### lit attach — Publisher adapter 兜底
 - **模块**：`lit/batch/attach.py` → `lit/download/engine.py` → `publisher/*.py`
@@ -67,8 +69,10 @@ python -m lit track <author> [--download]
 - **`lit/batch/common.py`**：quick 和 attach 的批量逻辑抽到这里（遍历 collection → 查缺口 → 下载 → 挂载）
 - **`lit/batch/quick.py`**：快速下载，单篇 + 批量
 - **`lit/batch/attach.py`**：Publisher adapter 兜底，单篇 + 批量
-- **`lit/download/quick_download.py`**：快速通道编排器（`_METHODS` 列表）
-- **`lit/download/scihub_cdp.py`**：Sci-Hub CDP 方案
+- **`lit/download/quick_download.py`**：快速通道编排器（`_METHODS` 列表，三源：Crossref TDM → Sci-Hub → Unpaywall）
+- **`lit/download/crossref_tdm.py`**：Crossref API `link[]` PDF 直链提取
+- **`lit/download/scihub_cdp.py`**：Sci-Hub CDP 方案（≤2021）
+- **`lit/download/unpaywall.py`**：Unpaywall OA 聚合下载
 - **`lit/download/engine.py`**：Publisher adapter 引擎（27 个适配器）
 - **元数据统一从 Zotero 拉**：`zotero.py` 的 `fetch_item()` 和 `item_to_meta()`
 - **DOI 作为 .md 文件名**：`format_doi_filename()` 实现，天然去重
