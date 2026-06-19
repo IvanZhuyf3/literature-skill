@@ -198,6 +198,7 @@ PYTHONIOENCODING=utf-8 python "pdf_parser.py" "path"    # 解析
 | `references/architecture.md` | 代码架构、`lit/` 包结构、适配器详解 |
 | `references/legacy.md` | 旧版入口参考（已弃用）|
 | `references/maintain.md` | 添加/修复 publisher 流程模板 |
+| `references/cron-automation.md` | 批量下载 cron 格式规范 + 模板（**创建 cron 前必读**） |
 | `references/people-guide.md` | 人机合作流程详细说明 |
 | `references/digest-workflow.md` | Scholar digest 填充方法论 + 增量消化工作流 |
 | `references/paper-digest-workflow.md` | Paper digest 单篇精读工作流 |
