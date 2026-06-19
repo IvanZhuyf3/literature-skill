@@ -10,8 +10,9 @@
 | `references/architecture.md` | 代码架构、`lit/` 包结构、适配器详解 |
 | `references/legacy.md` | 旧版入口参考（`main.py`, `zot.py`, `people.py`） |
 | `references/maintain.md` | 添加/修复 publisher 时的流程模板 |
+| `references/digest-workflow.md` | Scholar digest 填充方法论 + 增量消化工作流 |
+| `references/paper-digest-workflow.md` | Paper digest 单篇精读工作流 |
 | `references/people-guide.md` | 人机合作流程详细说明 |
-| `references/digest-workflow.md` | 消化模板填充方法论 |
 
 ## 主入口：`python -m lit <command>`
 

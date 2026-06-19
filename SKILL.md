@@ -80,6 +80,7 @@ PDF 下载是两个独立命令，agent 按需编排：
 | "帮我填满这个库的 PDF" | `lit quick <collection>` → `lit attach <collection>` |
 | 收集某学者所有论文 | `lit scholar <URL>` → 清洗 → `lit quick` → `lit attach` → `lit digest` |
 | **"更新 digest"** | 读已有 digest.md → diff Zotero 找新论文 → 逐篇深读 → 手术式更新（详见 `references/digest-workflow.md`） |
+| **"精读这篇论文"** | `lit parse <pdf>` → 深读全文 → paper digest（详见 `references/paper-digest-workflow.md`） |
 | 图片 OCR 导入 | `lit import <image_path>` → `lit quick <DOI>` → `lit attach <DOI>` |
 
 ## 下载编排（Agent 责任）
@@ -198,6 +199,7 @@ PYTHONIOENCODING=utf-8 python "pdf_parser.py" "path"    # 解析
 | `references/legacy.md` | 旧版入口参考（已弃用）|
 | `references/maintain.md` | 添加/修复 publisher 流程模板 |
 | `references/people-guide.md` | 人机合作流程详细说明 |
-| `references/digest-workflow.md` | 消化模板填充方法论 |
+| `references/digest-workflow.md` | Scholar digest 填充方法论 + 增量消化工作流 |
+| `references/paper-digest-workflow.md` | Paper digest 单篇精读工作流 |
 | `references/webdav-setup.md` | WebDAV 配置说明 |
 | `references/mineru-api.md` | MinerU PDF 解析 API 说明 |
