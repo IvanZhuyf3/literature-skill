@@ -19,10 +19,22 @@ from pathlib import Path
 import requests
 from rich.console import Console
 
-from lit.core.config import skill_base
+from lit.core.config import skill_base, load as load_config
 from lit.core.zotero import _local_db
 
 console = Console()
+
+
+def _s2_headers() -> dict[str, str]:
+    """Build S2 API headers with optional API key."""
+    headers = {}
+    try:
+        key = load_config().get("semantic_scholar", {}).get("api_key", "")
+        if key:
+            headers["x-api-key"] = key
+    except Exception:
+        pass
+    return headers
 
 
 def _load_profile(author_dir: str) -> dict:
@@ -77,7 +89,7 @@ def _s2_fetch_dois(author_id: str, known_count: int | None = None) -> tuple[set[
     while True:
         params = {"fields": "externalIds", "limit": limit, "offset": offset}
         try:
-            resp = requests.get(url, params=params, timeout=15)
+            resp = requests.get(url, params=params, headers=_s2_headers(), timeout=15)
             resp.raise_for_status()
         except Exception as e:
             console.print(f"[red]S2 API error (offset={offset}): {e}[/red]")

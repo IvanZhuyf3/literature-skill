@@ -3,20 +3,22 @@ lit/cli.py — 单一 CLI 入口。
 
 用法:
     lit scholar <URL>             抓取 Scholar → 注册 Zotero（无 PDF）
-    lit import <DOI/URL>          注册 Zotero → 自动快速下载 PDF
-    lit import <image_path>       图片 OCR → 注册 Zotero → 自动快速下载
-    lit attach <collection>       补缺 PDF（读 Zotero collection）
-    lit download <DOI/URL>        仅下载 PDF（不入 Zotero）（已废弃）
+    lit import <DOI/URL>          仅注册到 Zotero（不下载）
+    lit import <image_path>       图片 OCR → 注册 Zotero（不下载）
+    lit quick <DOI|collection>    快速下载（Sci-Hub + OA 源）→ 挂载
+    lit attach <DOI|collection>   Publisher adapter 兜底下载 → 挂载
+    lit pdf <DOI>                 查本地 PDF 路径
     lit parse <pdf_path>          MinerU 解析 PDF → Markdown
     lit digest <collection>       生成消化报告
     lit maintain [--collection X] [--fix] [--dry-run]  文件库健康检查与清理
     lit qr <DOI>                  生成 QR 码
+    lit track <author>            检测作者新论文
 
 架构:
-    import_ref.run()       → 仅加 ref 到 Zotero（不下载）
-    quick_download.run()   → 用最快免费源下载 PDF（不碰 Zotero）
-    lit import 由 CLI 编排: import_ref → quick_download → attach_pdf
-    lit track <author>     → S2 + CrossRef 双源检测新论文，注册到 Zotero + 下载
+    import_ref.run()       → 仅加 ref 到 Zotero
+    quick_download.run()   → Sci-Hub 快速下载 PDF（不碰 Zotero）
+    engine.download_pdf()  → Publisher adapter 兜底下载
+    Agent 编排: import → quick → attach（或按需组合）
 """
 from __future__ import annotations
 
@@ -42,20 +44,33 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--max-papers", type=int, default=None, help="限制篇数（测试用）")
     p.add_argument("--scrape-only", action="store_true", help="仅抓取，不注册")
 
-    # ── import ──
-    p = sub.add_parser("import", help="注册 Zotero → 自动快速下载 PDF")
+    # ── import (仅注册，不下载) ──
+    p = sub.add_parser("import", help="仅注册到 Zotero（不下载 PDF）")
     p.add_argument("source", help="DOI, URL, 或图片路径")
 
-    # ── download (DEPRECATED — use ``lit import <DOI>``) ──
-    p = sub.add_parser("download", help="[DEPRECATED] 仅下载 PDF（不入 Zotero）")
-    p.add_argument("source", help="DOI 或 URL")
-    p.add_argument("--no-deprecation-warning", action="store_true", help=argparse.SUPPRESS)
-
-    # ── attach ──
-    p = sub.add_parser("attach", help="读 Zotero collection → 批量补 PDF")
-    p.add_argument("collection", help="Zotero collection name (e.g. Ji-Xin Cheng)")
+    # ── quick (快速下载: Sci-Hub + OA) ──
+    p = sub.add_parser(
+        "quick",
+        help="快速下载（Sci-Hub + OA 源）— 单篇 DOI 或批量 collection",
+    )
+    p.add_argument(
+        "target",
+        help="DOI（单篇）或 Zotero collection 名（批量）",
+    )
     p.add_argument("--parent", default="People", help="父文件夹名（默认 People）")
-    p.add_argument("--limit", type=int, default=None, help="限制篇数")
+    p.add_argument("--limit", type=int, default=None, help="限制篇数（仅批量）")
+
+    # ── attach (Publisher adapter 兜底下载) ──
+    p = sub.add_parser(
+        "attach",
+        help="Publisher adapter 兜底下载 — 单篇 DOI 或批量 collection",
+    )
+    p.add_argument(
+        "target",
+        help="DOI（单篇）或 Zotero collection 名（批量）",
+    )
+    p.add_argument("--parent", default="People", help="父文件夹名（默认 People）")
+    p.add_argument("--limit", type=int, default=None, help="限制篇数（仅批量）")
 
     # ── parse ──
     p = sub.add_parser("parse", help="MinerU 解析 PDF → Markdown（可选带 bibliography）")
@@ -79,10 +94,9 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("qr", help="生成 DOI QR 码")
     p.add_argument("doi", help="DOI")
 
-    # ── pdf ──
-    p = sub.add_parser("pdf", help="按 DOI 查本地 PDF（没有则下载）")
+    # ── pdf (仅查本地) ──
+    p = sub.add_parser("pdf", help="按 DOI 查本地 PDF 路径")
     p.add_argument("doi", help="DOI（精确匹配）")
-    p.add_argument("--no-download", action="store_true", help="仅查本地，不下载")
 
     # ── track ──
     p = sub.add_parser("track", help="检测作者最新论文并导入 Zotero")
@@ -90,6 +104,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--download", action="store_true", help="检测后自动下载 PDF")
 
     return parser
+
+
+def _is_doi(target: str) -> bool:
+    """判断参数是 DOI 还是 collection 名。"""
+    # skill-base 根目录的 url_parser 有 is_doi
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from url_parser import is_doi
+    return is_doi(target)
 
 
 def main():
@@ -102,46 +124,35 @@ def main():
 
     elif args.command == "import":
         from lit.discover.import_ref import run as import_run
-        from lit.download.quick_download import run as quick_run
 
         result = import_run(args.source)
-
-        # Quick download runs by default after import
-        if result.get("doi") and result.get("item_key"):
-            pdf_path = quick_run(result["doi"], result.get("year"))
-            if pdf_path:
-                from lit.core.zotero import attach_pdf
-                att_key = attach_pdf(result["item_key"], pdf_path)
-                if att_key:
-                    console.print(
-                        f"[green]✓ PDF attached:[/green] {att_key}"
-                    )
-                    result["att_key"] = att_key
-                else:
-                    console.print(
-                        "[yellow]⚠ Quick download succeeded but "
-                        "attachment failed.[/yellow]"
-                    )
-            else:
-                console.print(
-                    "[dim]Quick download: no PDF available — "
-                    "try Zotero Find Full Text (manual)[/dim]"
-                )
-
-    elif args.command == "download":
-        from lit.download.engine import download_pdf
-        if not getattr(args, "no_deprecation_warning", False):
+        if result.get("item_key"):
             console.print(
-                "[yellow]⚠ `lit download` is deprecated. "
-                "Use `lit import <DOI>` instead "
-                "(imports to Zotero + downloads automatically).[/yellow]"
+                f"[green]✓ Registered:[/green] {result['item_key']}"
             )
-        result = download_pdf(args.source)
-        print(f"PDF saved to: {result}")
+            console.print(
+                f"[dim]Run `lit quick {result.get('doi', '<DOI>')}` to download PDF[/dim]"
+            )
+
+    elif args.command == "quick":
+        from lit.batch.quick import run as batch_run, run_single
+
+        if _is_doi(args.target):
+            result = run_single(args.target)
+            if result["status"] == "failed":
+                sys.exit(1)
+        else:
+            batch_run(args.target, parent=args.parent, limit=args.limit)
 
     elif args.command == "attach":
-        from lit.batch.attach import run
-        run(args.collection, parent=args.parent, limit=args.limit)
+        from lit.batch.attach import run as batch_run, run_single
+
+        if _is_doi(args.target):
+            result = run_single(args.target)
+            if result["status"] == "failed":
+                sys.exit(1)
+        else:
+            batch_run(args.target, parent=args.parent, limit=args.limit)
 
     elif args.command == "parse":
         from lit.digest.parser import run
@@ -162,35 +173,28 @@ def main():
         run(collection=args.collection, fix=args.fix, dry_run=args.dry_run)
 
     elif args.command == "qr":
-        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-        from generate_qr import generate_qr as _qr, slugify_doi
+        from generate_qr import generate_qr as _qr
         out_dir = str(Path(__file__).resolve().parent.parent / "download" / "temp")
         out = _qr(args.doi, out_dir)
         print(f"  QR code: {out}")
 
     elif args.command == "pdf":
         from lit.core.zotero import resolve_local_pdf
-        from lit.download.quick_download import run as quick_run
 
         pdf_path = resolve_local_pdf(args.doi)
         if pdf_path:
             print(pdf_path)
-        elif args.no_download:
-            console.print("[red]本地未找到[/red]")
-            sys.exit(1)
         else:
-            console.print("[dim]本地未找到，尝试下载...[/dim]")
-            pdf_path = quick_run(args.doi)
-            if pdf_path:
-                print(str(pdf_path))
-            else:
-                console.print("[red]下载失败[/red]")
-                sys.exit(1)
+            console.print("[red]本地未找到[/red]")
+            console.print(
+                f"[dim]运行 `lit quick {args.doi}` 下载[/dim]"
+            )
+            sys.exit(1)
 
     elif args.command == "track":
         from lit.discover.tracker import find_new_papers
-        from lit.download.quick_download import run as quick_run
         from lit.discover.import_ref import run as import_run
+        from lit.batch.quick import run_single as quick_single
 
         new = find_new_papers(args.author)
         if not new:
@@ -205,18 +209,13 @@ def main():
             for p in new:
                 console.print(f"\n[dim]处理 {p['doi']}...[/dim]")
                 result = import_run(p["doi"])
-                if result.get("doi") and result.get("item_key"):
-                    pdf_path = quick_run(result["doi"], result.get("year"))
-                    if pdf_path:
-                        from lit.core.zotero import attach_pdf
-                        attach_pdf(result["item_key"], pdf_path)
-                        console.print(f"  [green]✓ {p['doi']}[/green]")
-                    else:
-                        console.print(f"  [yellow]⚠ 注册成功，下载失败: {p['doi']}[/yellow]")
+                if result.get("item_key"):
+                    quick_single(result["doi"])
+                    console.print(f"  [green]✓ {p['doi']}[/green]")
                 else:
                     console.print(f"  [yellow]⚠ 注册失败: {p['doi']}[/yellow]")
         else:
-            console.print("\n使用 --download 自动下载到 Zotero")
+            console.print("\n使用 --download 自动导入 + 快速下载")
 
 
 if __name__ == "__main__":

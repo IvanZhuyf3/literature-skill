@@ -35,3 +35,9 @@ zotero:
   api_key: "YOUR_API_KEY"
   library_type: "user"
   storage_path: "C:\\Users\\YOUR_NAME\\Zotero\\storage"
+
+# Semantic Scholar API — 用于 lit track 增量检测
+# 有 key: 1 req/s 无限制。无 key: 100 req/5min
+# 申请: https://www.semanticscholar.org/product/api#api-key
+semantic_scholar:
+  api_key: ""

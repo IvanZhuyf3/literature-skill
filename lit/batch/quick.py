@@ -1,37 +1,27 @@
 """
-lit/batch/attach.py — Publisher adapter 兜底下载（Step 3）。
+lit/batch/quick.py — 快速免费下载（Sci-Hub + 未来 OA 源）。
 
 两个模式：
-  - 单篇：run_single(doi) → 查 Zotero item → 检查缺口 → engine.download_pdf() → attach
+  - 单篇：run_single(doi) → 查 Zotero item → 检查缺口 → quick_download → attach
   - 批量：run(collection)  → 遍历 collection → 同上
 
-本模块只做 publisher adapter 兜底（Step 3），不含 Sci-Hub（那是 lit quick 的事）。
+本模块只做快速下载（Step 1），不含 publisher adapter（那是 lit attach 的事）。
 """
 
 from __future__ import annotations
-
-from pathlib import Path
 
 from rich.console import Console
 
 from lit.core import zotero as zot
 from lit.core.config import load as load_config
-from lit.download.engine import download_pdf
+from lit.download.quick_download import run as quick_download
 from lit.batch.common import collect_missing, batch_download
 
 console = Console()
 
 
-def _adapter_download(doi: str) -> Path | None:
-    """包装 engine.download_pdf，统一返回 Path | None（不抛异常）。"""
-    try:
-        return download_pdf(doi, timeout=120)
-    except Exception:
-        return None
-
-
 def run_single(doi: str) -> dict:
-    """对单篇 DOI 运行 publisher adapter 兜底下载。
+    """对单篇 DOI 运行快速下载。
 
     Returns:
         {"status": "attached"|"already_has"|"failed"|"not_in_zotero", ...}
@@ -59,10 +49,10 @@ def run_single(doi: str) -> dict:
         result["status"] = "already_has"
         return result
 
-    # ── 3. Publisher adapter 下载 ──
-    console.print(f"  [dim]Publisher adapter: {doi} ...[/dim]")
-    try:
-        pdf_path: Path = download_pdf(doi, timeout=120)
+    # ── 3. Quick download ──
+    console.print(f"  [dim]Quick download: {doi} ...[/dim]")
+    pdf_path = quick_download(doi)
+    if pdf_path:
         att_key = zot.attach_pdf(item_key, pdf_path)
         if att_key:
             console.print(f"  [green]✓ Attached: {att_key}[/green]")
@@ -71,9 +61,8 @@ def run_single(doi: str) -> dict:
         else:
             console.print(f"  [yellow]⚠ 下载成功但挂载失败[/yellow]")
             result["status"] = "failed"
-    except Exception as e:
-        err = str(e)[:200]
-        console.print(f"  [red]✗ Failed: {err}[/red]")
+    else:
+        console.print(f"  [dim]✗ Quick download: no PDF — try lit attach[/dim]")
         result["status"] = "failed"
 
     return result
@@ -84,8 +73,8 @@ def run(
     parent: str = "People",
     limit: int | None = None,
 ) -> dict:
-    """批量 publisher adapter 兜底下载。"""
+    """批量快速下载。"""
     papers, stats = collect_missing(collection, parent)
     if not papers:
         return stats
-    return batch_download(papers, stats, _adapter_download, "Publisher", limit)
+    return batch_download(papers, stats, quick_download, "Quick", limit)
