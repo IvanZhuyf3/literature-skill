@@ -26,6 +26,7 @@ from rich.console import Console
 from lit.download.crossref_tdm import try_crossref_tdm
 from lit.download.scihub_cdp import try_scihub
 from lit.download.unpaywall import try_unpaywall
+from lit.download.preprint import try_preprint
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -36,6 +37,7 @@ console = Console()
 # 函数签名: (doi: str, year: str | int | None) -> Path | None
 _METHODS: list[tuple[str, callable]] = [
     ("Crossref TDM", try_crossref_tdm),
+    ("Preprint", try_preprint),
     ("Sci-Hub (CDP)", try_scihub),
     ("Unpaywall", try_unpaywall),
 ]

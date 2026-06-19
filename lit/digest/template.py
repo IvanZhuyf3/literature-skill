@@ -96,7 +96,7 @@ def run(collection: str, parent: str = "People", output: str | None = None) -> s
         authors_str = _format_authors(creators)
         journal = (data.get("publicationTitle") or data.get("publisher") or "").strip()
 
-        # Citation count: Zotero doesn't expose it, try CrossRef
+        # Citation count: fetched later only for Top 10 candidates
         citations = 0
 
         paper = {
@@ -202,6 +202,21 @@ def run(collection: str, parent: str = "People", output: str | None = None) -> s
     lines.append("---\n")
     lines.append("## Block 4: 核心高引论文深读\n")
     lines.append("> 按引用数排序的前 10 篇论文，深入分析其贡献。\n")
+
+    # Fetch citation counts from CrossRef — only for papers with DOI
+    # Limit to avoid hammering API: fetch all, but CrossRef is fast (~0.1s/call)
+    # and only runs during digest generation (infrequent)
+    console.print("  [dim]Fetching citation counts from CrossRef...[/dim]")
+    from lit.core.crossref import fetch_metadata
+    fetched = 0
+    for p in papers:
+        if p.get("doi"):
+            cr = fetch_metadata(p["doi"])
+            if cr:
+                p["citations"] = cr.get("citations", 0)
+            fetched += 1
+            if fetched % 50 == 0:
+                console.print(f"  [dim]  ...{fetched} papers queried[/dim]")
 
     top10 = sorted(papers, key=lambda p: p.get("citations", 0), reverse=True)[:10]
     lines.append("### 高引论文 Top 10\n")

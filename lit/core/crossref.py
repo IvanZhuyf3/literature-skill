@@ -226,6 +226,9 @@ def _extract_work(msg: dict) -> dict:
     # --- URL ---
     url = msg.get("URL", "")
 
+    # --- Citation count ---
+    citations = msg.get("is-referenced-by-count", 0)
+
     return {
         "doi": doi,
         "title": title,
@@ -239,6 +242,7 @@ def _extract_work(msg: dict) -> dict:
         "abstract": abstract,
         "publisher": publisher,
         "url": url,
+        "citations": citations,
     }
 
 
