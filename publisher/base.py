@@ -36,9 +36,6 @@ class PublisherAdapter(ABC):
 
     def __init__(self, config: dict):
         self.config = config
-        self.publisher_config = config.get("publishers", {}).get(
-            self.name, {}
-        )
 
     @property
     @abstractmethod

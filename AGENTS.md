@@ -87,8 +87,7 @@ python -m lit track <author> [--download]
 - Windows Hyper-V 可能保留端口 9222，用 19222 避免冲突
 - 旧版入口（`main.py`, `zot.py`, `people.py`）代码保留兼容，`engine.py` 失败时作为子进程 fallback 调 `main.py`
 - Sci-Hub CDP 下载：DDoS-Guard 需~5s 解析，`wait_for_load_state("domcontentloaded")` + 轮询 title
-- Publisher adapter 选择器维护：出版商改版 DOM 后选择器会失效，需 CDP 探测新选择器（流程见 `references/maintain.md`）
-- Publisher adapter 选择器全部硬编码在各 adapter 的 `find_download_element()` 中（config.yaml 的 `publishers:` 块是 ACS 调试残留，无实际作用）
+- Publisher adapter 选择器全部硬编码在各 adapter 的 `find_download_element()` 中。config.yaml 不含 `publishers` 块（已清理）
 
 ## TODO / Ideas（未排期）
 

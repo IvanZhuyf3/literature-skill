@@ -91,22 +91,17 @@ class ACSAdapter(PublisherAdapter):
         3. 文本包含 "PDF" 的链接
         4. 高保真 PDF 链接（Hi-Res PDF）
         """
-        selectors = self.publisher_config.get("download_selectors", [
-            # 从配置中获取或使用默认值
-        ])
-
-        if not selectors:
-            selectors = [
-                # 高保真 PDF（ACS 特色）
-                'a:has-text("Hi-Res PDF")',
-                # 普通 PDF 链接
-                'a[href*="/doi/pdf/"]',
-                # PDF 按钮
-                'a.pdf-link',
-                'a[title="PDF"]',
-                # 通用 fallback
-                'a:has-text("PDF")',
-            ]
+        selectors = [
+            # 高保真 PDF（ACS 特色）
+            'a:has-text("Hi-Res PDF")',
+            # 普通 PDF 链接
+            'a[href*="/doi/pdf/"]',
+            # PDF 按钮
+            'a.pdf-link',
+            'a[title="PDF"]',
+            # 通用 fallback
+            'a:has-text("PDF")',
+        ]
 
         for selector in selectors:
             try:
