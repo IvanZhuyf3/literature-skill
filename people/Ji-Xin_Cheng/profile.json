@@ -13,11 +13,13 @@
   "created": "2026-06-18",
   "s2_ids": [
     "144507368",
-    "2244002386"
+    "2244002386",
+    "2158371947"
   ],
   "s2_notes": "S2 has two duplicate profiles for same person (different dash encoding). Both checked for coverage.",
   "s2_paper_counts": {
     "144507368": 444,
-    "2244002386": null
+    "2244002386": null,
+    "2158371947": null
   }
 }
