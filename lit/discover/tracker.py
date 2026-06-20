@@ -68,23 +68,41 @@ def _get_zotero_dois() -> set[str]:
 
 # ── Semantic Scholar ──
 
+def _s2_get_paper_count(author_id: str) -> int | None:
+    """Get total paper count from S2 author endpoint (single API call)."""
+    url = f"https://api.semanticscholar.org/graph/v1/author/{author_id}?fields=paperCount"
+    try:
+        resp = requests.get(url, headers=_s2_headers(), timeout=15)
+        resp.raise_for_status()
+        return resp.json().get("paperCount")
+    except Exception as e:
+        console.print(f"[red]S2 author API error ({author_id}): {e}[/red]")
+        return None
+
+
 def _s2_fetch_dois(author_id: str, known_count: int | None = None) -> tuple[set[str], int]:
     """Fetch DOIs for an author from Semantic Scholar.
 
-    Incremental: if known_count is set, only fetch papers at offset >= known_count
-    (i.e. newly added since last check). Returns (dois, total_count).
+    First run (known_count=None): record paperCount as baseline via author
+    endpoint, fetch NOTHING. Avoids pulling back items the user manually
+    deleted from Zotero/Scholar.
 
-    If known_count is None (first run), fetches all papers.
-    S2 API doesn't return total count, so we discover it via pagination.
+    Subsequent runs: fetch only papers at offset >= known_count (newly added
+    since last check). Returns (dois, total_count).
     """
+    # First run: just record the baseline count, don't fetch any papers
+    if known_count is None:
+        total = _s2_get_paper_count(author_id)
+        if total is None:
+            return set(), 0
+        return set(), total
+
+    # Incremental: fetch only papers beyond the known offset
     dois: set[str] = set()
     limit = 100
     url = f"https://api.semanticscholar.org/graph/v1/author/{author_id}/papers"
-
-    # Determine starting offset
-    start_offset = known_count if known_count is not None else 0
-    offset = start_offset
-    max_count = start_offset  # track highest offset we've seen
+    offset = known_count
+    max_count = known_count
 
     while True:
         params = {"fields": "externalIds", "limit": limit, "offset": offset}
@@ -108,7 +126,6 @@ def _s2_fetch_dois(author_id: str, known_count: int | None = None) -> tuple[set[
 
         max_count = offset + len(papers)
 
-        # S2 returns "next" if there are more pages; absent = last page
         if "next" not in data:
             break
         offset = data["next"]
@@ -195,7 +212,7 @@ def find_new_papers(author_dir: str) -> list[dict]:
             kc = known_counts.get(s2_id)
             is_first_run = kc is None
             console.print(f"[dim]Querying Semantic Scholar (author {s2_id}, "
-                          f"{'full scan' if is_first_run else f'incremental from {kc}'})...[/dim]")
+                          f"{'baseline setup' if is_first_run else f'incremental from {kc}'})...[/dim]")
             dois_i, total_i = _s2_fetch_dois(s2_id, kc)
             console.print(f"  S2 [{s2_id}]: {len(dois_i)} DOIs (total {total_i})")
             s2_dois |= dois_i
