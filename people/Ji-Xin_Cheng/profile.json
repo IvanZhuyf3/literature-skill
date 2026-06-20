@@ -11,5 +11,13 @@
   "crossref_last_check": "2026-06-18",
   "s2_last_check": "2026-06-18",
   "created": "2026-06-18",
-  "s2_paper_count": 444
+  "s2_ids": [
+    "144507368",
+    "2244002386"
+  ],
+  "s2_notes": "S2 has two duplicate profiles for same person (different dash encoding). Both checked for coverage.",
+  "s2_paper_counts": {
+    "144507368": 444,
+    "2244002386": null
+  }
 }

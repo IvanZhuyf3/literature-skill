@@ -175,7 +175,10 @@ def find_new_papers(author_dir: str) -> list[dict]:
         List of {"doi": str, "source": str} for new papers.
     """
     profile = _load_profile(author_dir)
-    s2_id = profile.get("s2_author_id")
+    # Support multiple S2 IDs (S2 sometimes has duplicate profiles for the same person)
+    s2_ids = profile.get("s2_ids") or (
+        [profile["s2_author_id"]] if profile.get("s2_author_id") else []
+    )
     aliases = profile.get("aliases", [profile.get("name", "")])
 
     # Determine "since" date for CrossRef (default: 30 days ago)
@@ -185,14 +188,21 @@ def find_new_papers(author_dir: str) -> list[dict]:
     s2_dois: set[str] = set()
     crossref_dois: set[str] = set()
 
-    if s2_id:
-        known_count = profile.get("s2_paper_count")
-        is_first_run = known_count is None
-        console.print(f"[dim]Querying Semantic Scholar (author {s2_id}, "
-                      f"{'full scan' if is_first_run else f'incremental from {known_count}'})...[/dim]")
-        s2_dois, s2_total = _s2_fetch_dois(s2_id, known_count)
-        console.print(f"  S2: {len(s2_dois)} new DOIs (total now {s2_total})")
-        profile["s2_paper_count"] = s2_total
+    if s2_ids:
+        known_counts = profile.get("s2_paper_counts", {})
+        s2_totals: dict[str, int] = {}
+        for s2_id in s2_ids:
+            kc = known_counts.get(s2_id)
+            is_first_run = kc is None
+            console.print(f"[dim]Querying Semantic Scholar (author {s2_id}, "
+                          f"{'full scan' if is_first_run else f'incremental from {kc}'})...[/dim]")
+            dois_i, total_i = _s2_fetch_dois(s2_id, kc)
+            console.print(f"  S2 [{s2_id}]: {len(dois_i)} DOIs (total {total_i})")
+            s2_dois |= dois_i
+            s2_totals[s2_id] = total_i
+        profile["s2_paper_counts"] = s2_totals
+        # backward-compat aggregate
+        profile["s2_paper_count"] = max(s2_totals.values())
 
     console.print(f"[dim]Querying CrossRef (since {since_date})...[/dim]")
     crossref_dois = _crossref_fetch_dois(aliases, since_date)
