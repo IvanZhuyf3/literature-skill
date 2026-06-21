@@ -22,7 +22,7 @@ import lit.discover.tracker as tr
 # Redirect tracker's console to suppress debug logs
 tr.console.file = StringIO()
 
-AUTHORS = ["Ji-Xin_Cheng", "Wei_Min"]
+AUTHORS = ["Ji-Xin_Cheng", "Wei_Min", "Herve_Rigneault"]
 results = {}
 
 for author in AUTHORS:

@@ -127,6 +127,12 @@ def batch_download(
         console.print(f"\n  [{i + 1}/{stats['total']}] {paper['title']}")
         doi = paper["doi"]
 
+        # ── Re-check: PDF may have been added since collect_missing ──
+        if zot.resolve_local_pdf(doi):
+            stats["already_have"] = stats.get("already_have", 0) + 1
+            console.print(f"    [dim]⊘ Already has PDF (skipped)[/dim]")
+            continue
+
         try:
             console.print(f"    [dim]{label}: {doi} ...[/dim]")
             pdf_path = download_fn(doi)

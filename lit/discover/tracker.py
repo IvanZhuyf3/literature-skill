@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import time
+import unicodedata
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -136,11 +137,18 @@ def _s2_fetch_dois(author_id: str, known_count: int | None = None) -> tuple[set[
 
 # ── CrossRef ──
 
+def _normalize_name(s: str) -> str:
+    """Normalize a name for comparison: lowercase, strip accents/hyphens/dots/spaces."""
+    s = unicodedata.normalize("NFKD", s.lower())
+    s = "".join(c for c in s if not unicodedata.combining(c))
+    return "".join(c for c in s if c.isalnum())
+
+
 def _crossref_fetch_dois(aliases: list[str], since: str) -> set[str]:
     """Fetch DOIs from CrossRef matching author name, created since `since` (YYYY-MM-DD).
 
-    Only fetches the first page per alias (sorted by relevance).
-    Filters false positives by checking author list.
+    Uses exact full-name matching (normalized) to filter false positives.
+    Abbreviated aliases (e.g. "JX", "H.") are skipped — too ambiguous.
     """
     dois: set[str] = set()
     base = "https://api.crossref.org/works"
@@ -161,21 +169,22 @@ def _crossref_fetch_dois(aliases: list[str], since: str) -> set[str]:
             continue
 
         items = resp.json().get("message", {}).get("items", [])
-        alias_lower = alias.lower()
-        alias_parts = alias_lower.split()
-        alias_family = alias_parts[-1] if alias_parts else ""
+        alias_parts = alias.lower().split()
+        alias_family = _normalize_name(alias_parts[-1]) if alias_parts else ""
+        alias_given = _normalize_name(" ".join(alias_parts[:-1]))
+
+        # Skip abbreviated aliases (e.g. "JX", "H.") — too short for
+        # reliable full-name matching against CrossRef fuzzy results.
+        if len(alias_given) < 4:
+            continue
 
         for item in items:
             authors = item.get("author", [])
             for a in authors:
-                family = a.get("family", "").lower()
-                given = a.get("given", "").lower()
-                if family == alias_family:
-                    given_initials = [w[0] for w in given.split() if w]
-                    alias_initials = [w[0] for w in alias_parts[:-1] if w]
-                    if any(ai in given_initials for ai in alias_initials):
-                        dois.add(item["DOI"].lower())
-                        break
+                if _normalize_name(a.get("family", "")) == alias_family and \
+                   _normalize_name(a.get("given", "")) == alias_given:
+                    dois.add(item["DOI"].lower())
+                    break
 
         time.sleep(0.5)
 

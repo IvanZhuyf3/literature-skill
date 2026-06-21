@@ -11,21 +11,83 @@ Public function:
 
 from __future__ import annotations
 
+import json
 import re
 import sys
+import unicodedata
 from pathlib import Path
 
 import requests
 from rich.console import Console
 
-from lit.core.config import load as get_config
+from lit.core.config import load as get_config, skill_base
 from lit.core.crossref import fetch_metadata, resolve_doi
 from lit.core.zotero import (
     check_duplicate,
     create_item,
+    assign_to_collection,
+    find_collection,
 )
 
 console = Console()
+
+
+# ── Auto-collection assignment ────────────────────────────────────
+
+def _normalize_name(s: str) -> str:
+    """Normalize a full name for comparison: lowercase, strip accents/punctuation."""
+    s = unicodedata.normalize("NFKD", s.lower())
+    s = "".join(c for c in s if not unicodedata.combining(c))
+    return "".join(c for c in s if c.isalnum())
+
+
+def _load_tracked_people() -> list[dict]:
+    """Load all people/*/profile.json entries.
+
+    Returns a list of dicts with keys: name, aliases (normalized full-name set),
+    and collection (zotero_collection name).
+    """
+    people_dir = skill_base() / "people"
+    if not people_dir.exists():
+        return []
+
+    result = []
+    for profile_path in sorted(people_dir.glob("*/profile.json")):
+        try:
+            with open(profile_path, "r", encoding="utf-8") as f:
+                profile = json.load(f)
+            collection = profile.get("zotero_collection", "")
+            if not collection:
+                continue
+            # Build normalized full-name set from aliases
+            names: set[str] = set()
+            for alias in profile.get("aliases", []):
+                names.add(_normalize_name(alias))
+            if names:
+                result.append({"collection": collection, "names": names})
+        except Exception:
+            continue
+    return result
+
+
+def _auto_assign_collections(item_key: str, authors: list[str]):
+    """Scan tracked people and assign item to every matching collection.
+
+    A paper with Cheng + Wei Min as authors gets added to both collections.
+    """
+    people = _load_tracked_people()
+    if not people or not authors:
+        return
+
+    # Normalize paper authors
+    paper_names = {_normalize_name(a) for a in authors if a}
+
+    for person in people:
+        if paper_names & person["names"]:
+            coll_key = find_collection(person["collection"])
+            if coll_key:
+                assign_to_collection(item_key, coll_key)
+                console.print(f"  [cyan]→ {person['collection']}[/cyan]")
 
 
 # ---------------------------------------------------------------------------
@@ -374,6 +436,13 @@ def run(source: str) -> dict:
         except Exception as e:
             console.print(f"[red]Failed to create Zotero item: {e}[/red]")
             return result
+
+    # ── Auto-assign to tracked people's collections ─────────────────────
+    authors = meta.get("authors", [])
+    if isinstance(authors, str):
+        authors = [a.strip() for a in authors.split(",") if a.strip()]
+    if authors and result.get("item_key"):
+        _auto_assign_collections(result["item_key"], authors)
 
     # ── Summary ───────────────────────────────────────────────────────────
 

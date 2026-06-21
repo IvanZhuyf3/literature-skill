@@ -87,6 +87,74 @@ def _file_hash(filepath):
     return h.hexdigest()[:16]  # 16 chars is enough for dedup
 
 
+def _get_page_count(filepath):
+    """Get PDF page count using PyMuPDF."""
+    import fitz
+    doc = fitz.open(filepath)
+    count = doc.page_count
+    doc.close()
+    return count
+
+
+def _needs_splitting(filepath):
+    """Check if PDF exceeds MinerU limits (200MB or 200 pages)."""
+    file_size = os.path.getsize(filepath)
+    if file_size > MAX_FILE_SIZE:
+        return True
+    try:
+        pages = _get_page_count(filepath)
+        if pages > MAX_PAGE_COUNT:
+            return True
+    except Exception as e:
+        logger.warning(f"Could not read page count: {e}")
+    return False
+
+
+def _split_pdf(filepath, max_pages=MAX_PAGE_COUNT, cache_dir=None):
+    """Split a large PDF into chunks of ≤max_pages.
+
+    Returns: list of (temp_file_path, page_range_str) tuples.
+    Caller is responsible for cleaning up temp files.
+    """
+    import fitz
+    import tempfile
+
+    doc = fitz.open(filepath)
+    total_pages = doc.page_count
+
+    chunks = []
+    chunk_idx = 0
+    start_page = 0
+    while start_page < total_pages:
+        end_page = min(start_page + max_pages, total_pages)
+
+        # Create chunk PDF
+        chunk_doc = fitz.open()
+        chunk_doc.insert_pdf(doc, from_page=start_page, to_page=end_page - 1)
+
+        # Save to temp file
+        prefix = os.path.splitext(os.path.basename(filepath))[0]
+        tmp_fd, tmp_path = tempfile.mkstemp(
+            suffix=f"_p{start_page+1}-{end_page}.pdf",
+            prefix=f"{prefix}_chunk{chunk_idx}_",
+            dir=cache_dir,
+        )
+        os.close(tmp_fd)
+        chunk_doc.save(tmp_path)
+        chunk_doc.close()
+
+        page_range = f"{start_page + 1}-{end_page}"
+        chunks.append((tmp_path, page_range))
+        logger.info(f"  Chunk {chunk_idx}: pages {page_range} "
+                     f"({os.path.getsize(tmp_path) / 1024 / 1024:.1f}MB)")
+
+        start_page = end_page
+        chunk_idx += 1
+
+    doc.close()
+    return chunks
+
+
 def _upload_and_parse(filepath, token, config, model_version=None,
                       enable_formula=True, enable_table=True,
                       language=None, page_ranges=None):
@@ -235,13 +303,16 @@ def parse_pdf(filepath, config=None, use_cache=True, **kwargs):
     """
     Parse a PDF file via MinerU online API.
     
+    Automatically splits PDFs exceeding 200 pages or 200MB into chunks,
+    parses each separately, and merges the markdown results.
+
     Args:
         filepath: Path to PDF file
         config: Config dict (auto-loaded if None)
         use_cache: If True, skip re-parsing if cached result exists
         **kwargs: Override model_version, enable_formula, enable_table,
                   language, page_ranges
-    
+
     Returns:
         Markdown string on success, None on failure.
     
@@ -254,7 +325,7 @@ def parse_pdf(filepath, config=None, use_cache=True, **kwargs):
         return None
     
     file_size = os.path.getsize(filepath)
-    if file_size > MAX_FILE_SIZE:
+    if file_size > MAX_FILE_SIZE and not _needs_splitting(filepath):
         logger.error(f"File too large: {file_size / 1024 / 1024:.1f}MB (limit {MAX_FILE_SIZE / 1024 / 1024:.0f}MB)")
         return None
     
@@ -272,6 +343,73 @@ def parse_pdf(filepath, config=None, use_cache=True, **kwargs):
         with open(cache_file, "r", encoding="utf-8") as f:
             return f.read()
     
+    # ── Split large PDFs into chunks ──
+    if _needs_splitting(filepath):
+        pages = _get_page_count(filepath)
+        n_chunks = (pages + MAX_PAGE_COUNT - 1) // MAX_PAGE_COUNT
+        logger.info(f"PDF has {pages} pages — splitting into {n_chunks} chunks of ≤{MAX_PAGE_COUNT} pages")
+        
+        chunks = _split_pdf(filepath, max_pages=MAX_PAGE_COUNT, cache_dir=cache_dir)
+        markdown_parts = []
+        temp_files = [cp for cp, _ in chunks]
+        
+        try:
+            for i, (chunk_path, page_range) in enumerate(chunks):
+                logger.info(f"Parsing chunk {i+1}/{len(chunks)} (pages {page_range})...")
+                
+                # Check chunk cache
+                chunk_hash = _file_hash(chunk_path)
+                chunk_cache = os.path.join(cache_dir, f"{chunk_hash}.md")
+                if use_cache and os.path.exists(chunk_cache):
+                    with open(chunk_cache, "r", encoding="utf-8") as f:
+                        md = f.read()
+                    logger.info(f"  Chunk {i+1} cache hit")
+                else:
+                    # Upload + poll this chunk
+                    batch_id = _upload_and_parse(chunk_path, token, config, **kwargs)
+                    if batch_id is None:
+                        logger.error(f"  Chunk {i+1} upload failed")
+                        continue
+                    result = _poll_batch_result(batch_id, token,
+                                                timeout=kwargs.get("timeout", POLL_TIMEOUT))
+                    if result is None:
+                        logger.error(f"  Chunk {i+1} parse failed/timeout")
+                        continue
+                    zip_url = result.get("full_zip_url", "")
+                    md, _ = _download_and_extract_zip(zip_url, cache_dir)
+                    if md is None:
+                        logger.error(f"  Chunk {i+1} download failed")
+                        continue
+                    # Cache chunk
+                    with open(chunk_cache, "w", encoding="utf-8") as f:
+                        f.write(md)
+                
+                markdown_parts.append(md)
+        finally:
+            # Clean up temp chunk files
+            for tf in temp_files:
+                try:
+                    os.unlink(tf)
+                except Exception:
+                    pass
+        
+        if not markdown_parts:
+            logger.error("All chunks failed")
+            return None
+        
+        # Merge: join with page separator
+        merged = "\n\n---\n\n".join(markdown_parts)
+        logger.info(f"Merged {len(markdown_parts)}/{len(chunks)} chunks "
+                     f"({len(merged)} chars total)")
+        
+        # Cache merged result
+        with open(cache_file, "w", encoding="utf-8") as f:
+            f.write(merged)
+        logger.info(f"Cached to: {cache_file}")
+        
+        return merged
+    
+    # ── Normal path: single upload ──
     # Step 1: Upload + submit
     batch_id = _upload_and_parse(filepath, token, config, **kwargs)
     if batch_id is None:

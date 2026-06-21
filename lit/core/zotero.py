@@ -6,6 +6,7 @@ lit/core/zotero.py — Zotero API 薄封装
 """
 from __future__ import annotations
 
+import logging
 import sys
 import sqlite3
 from pathlib import Path
@@ -13,6 +14,8 @@ from typing import Any
 
 from pyzotero import zotero as zotero_mod
 from rich.console import Console
+
+logger = logging.getLogger(__name__)
 
 from lit.core.config import zotero as get_zotero_cfg, storage_path as get_storage_path
 
@@ -110,21 +113,41 @@ def find_or_create_collection(name: str, parent_name: str = "People") -> str:
 
 
 def find_collection(name: str, parent_name: str = "People") -> str | None:
-    """Find an existing collection. Returns key or None if not found."""
+    """Find an existing collection. Returns key or None if not found.
+
+    Lookup order:
+    1. Exact key match (input IS a Zotero collection key like "ABCD1234")
+    2. Name match under parent_name (e.g. "People/Ji-Xin Cheng")
+    3. Name match as top-level collection (parent_name="" or not found)
+    """
     zot = _client()
     all_cols = zot.collections()
 
-    parent_key = None
+    # 1. Exact key match
     for col in all_cols:
-        if col["data"]["name"] == parent_name and not col["data"].get("parentCollection", False):
-            parent_key = col["key"]
-            break
-    if not parent_key:
-        return None
-
-    for col in all_cols:
-        if col["data"]["name"] == name and col["data"].get("parentCollection") == parent_key:
+        if col["key"] == name:
             return col["key"]
+
+    # 2. Find parent key (if parent_name given)
+    parent_key = None
+    if parent_name:
+        for col in all_cols:
+            cd = col["data"]
+            if cd["name"] == parent_name and not cd.get("parentCollection", False):
+                parent_key = col["key"]
+                break
+
+    # 3. Name match under parent
+    if parent_key:
+        for col in all_cols:
+            if col["data"]["name"] == name and col["data"].get("parentCollection") == parent_key:
+                return col["key"]
+
+    # 4. Top-level name match (any collection with this name, regardless of parent)
+    for col in all_cols:
+        if col["data"]["name"] == name:
+            return col["key"]
+
     return None
 
 
@@ -203,47 +226,17 @@ def find_by_url(url: str) -> str | None:
 
 
 def check_duplicate(doi: str = "", title: str = "", url: str = "") -> tuple[str | None, str | None]:
-    """Comprehensive dedup check by DOI, URL, or title.
+    """Dedup check by DOI only.
 
-    Returns (item_key, match_reason) if found, (None, None) otherwise.
-
-    DOI lookup uses local SQLite (find_by_doi) — fast and reliable.
-    Falls back to API q-search for title/URL matching.
+    Returns (item_key, "DOI") if found, (None, None) otherwise.
+    DOI is the only reliable paper identifier — URL/title API searches
+    were unreliable (returns wrong items, crashes on non-dict responses)
+    and have been removed.
     """
-    zot = _client()
-
-    # ── 1. DOI (primary, reliable — local SQLite) ──
     if doi:
         key = find_by_doi(doi)
         if key:
             return key, "DOI"
-
-    # ── 2. URL (API q-search fallback) ──
-    if url:
-        key = find_by_url(url)
-        if key:
-            return key, "URL"
-
-    # ── 3. Title (API q-search, less reliable) ──
-    if title:
-        queries = [("title", title[:60])]
-        for label, query in queries:
-            try:
-                results = zot.items(q=query, limit=25)
-            except Exception:
-                continue
-            for item in results:
-                d = item.get("data", {})
-                itype = d.get("itemType", "")
-                item_title = d.get("title", "").strip()
-                if itype not in ("attachment", "note") and item_title:
-                    if item_title.lower() == title.lower():
-                        return d["key"], "title"
-                if itype == "attachment" and item_title:
-                    if item_title.lower() == title.lower():
-                        parent = d.get("parentItem", "")
-                        if parent:
-                            return parent, "title"
     return None, None
 
 
@@ -542,9 +535,25 @@ def attach_pdf(item_key: str, pdf_path: Path) -> str:
         pdf_path: Path to the PDF file.
 
     Returns:
-        Attachment item key.
+        Attachment item key (existing or new).
     """
     from lit.core.config import load as get_config
+
+    # ── Dedup: skip if item already has a PDF attachment ──
+    zot = _client()
+    try:
+        children = zot.children(item_key)
+        for child in children:
+            d = child.get("data", {})
+            if (d.get("itemType") == "attachment"
+                    and d.get("contentType") == "application/pdf"):
+                existing_key = child["key"]
+                logger.info("attach_pdf: item %s already has PDF attachment %s, skipping",
+                            item_key, existing_key)
+                return existing_key
+    except Exception:
+        pass  # API check failed → proceed with attach
+
     cfg = get_config()
     sync = cfg.get("zotero", {}).get("sync_method", "webdav")
 

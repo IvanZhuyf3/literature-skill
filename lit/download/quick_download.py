@@ -38,8 +38,8 @@ console = Console()
 _METHODS: list[tuple[str, callable]] = [
     ("Crossref TDM", try_crossref_tdm),
     ("Preprint", try_preprint),
-    ("Sci-Hub (CDP)", try_scihub),
     ("Unpaywall", try_unpaywall),
+    ("Sci-Hub (CDP)", try_scihub),
 ]
 
 
