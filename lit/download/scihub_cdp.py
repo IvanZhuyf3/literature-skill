@@ -215,6 +215,103 @@ def try_scihub(
     return None
 
 
+def _download_pdf(
+    page, pdf_url: str, doi: str, base_url: str,
+) -> bytes | None:
+    """
+    Try multiple methods to download the PDF, return raw bytes on success.
+
+    Different pages / different times — CORS, tracking prevention, CDN
+    topology all vary.  No single method is reliable, so we try several.
+
+    Methods (in order):
+      1. page.request.get()      — Playwright API context, shares cookies
+      2. page.evaluate(fetch())  — in-page browser fetch (same-origin only)
+      3. requests.get() + cookies — pure HTTP, never subject to CORS
+      4. expect_download()       — navigate to PDF, browser native download
+    """
+    import base64 as _b64
+
+    # ── Method 1: Playwright request API ──
+    for attempt in range(2):
+        try:
+            resp = page.request.get(pdf_url, timeout=30_000)
+            if resp.ok:
+                body = resp.body()
+                if body and len(body) > 100:
+                    logger.info("Sci-Hub CDP: ✓ page.request.get() (attempt %d)", attempt + 1)
+                    return body
+            logger.info("Sci-Hub CDP: request attempt %d got HTTP %s",
+                        attempt + 1, resp.status)
+        except Exception as req_err:
+            logger.info("Sci-Hub CDP: request attempt %d failed: %s",
+                        attempt + 1, req_err)
+        if attempt < 1:
+            time.sleep(3)
+
+    # ── Method 2: in-page browser fetch (base64) ──
+    try:
+        b64_data = page.evaluate("""
+            async (url) => {
+                const resp = await fetch(url);
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                const blob = await resp.blob();
+                const buf = await blob.arrayBuffer();
+                const bytes = new Uint8Array(buf);
+                let binary = '';
+                const chunk = 8192;
+                for (let i = 0; i < bytes.length; i += chunk) {
+                    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+                }
+                return btoa(binary);
+            }
+        """, pdf_url)
+        data = _b64.b64decode(b64_data)
+        if data and len(data) > 100:
+            logger.info("Sci-Hub CDP: ✓ page.evaluate(fetch())")
+            return data
+    except Exception as e:
+        logger.info("Sci-Hub CDP: browser fetch failed: %s", e)
+
+    # ── Method 3: requests.get() with cookies extracted from browser ──
+    try:
+        import requests as _req
+        # Extract cookies from the page context
+        cookies = page.context.cookies()
+        cookie_str = "; ".join(
+            f"{c['name']}={c['value']}" for c in cookies
+        )
+        headers = {
+            "User-Agent": page.evaluate("() => navigator.userAgent"),
+            "Referer": page.url,
+            "Cookie": cookie_str,
+        }
+        r = _req.get(pdf_url, headers=headers, timeout=30, allow_redirects=True)
+        if r.ok and len(r.content) > 100:
+            logger.info("Sci-Hub CDP: ✓ requests.get() with cookies")
+            return r.content
+        logger.info("Sci-Hub CDP: requests.get() got HTTP %s", r.status_code)
+    except Exception as e:
+        logger.info("Sci-Hub CDP: requests.get() failed: %s", e)
+
+    # ── Method 4: browser native download via expect_download() ──
+    try:
+        with page.expect_download(timeout=30_000) as dl_info:
+            page.goto(pdf_url, timeout=30_000)
+        download = dl_info.value
+        # Save to temp then read
+        tmp = download.path()
+        if tmp:
+            data = Path(tmp).read_bytes()
+            if data and len(data) > 100:
+                logger.info("Sci-Hub CDP: ✓ expect_download()")
+                return data
+    except Exception as e:
+        logger.info("Sci-Hub CDP: expect_download() failed: %s", e)
+
+    return None
+
+
 def _try_one_mirror(
     doi: str,
     base_url: str,
@@ -355,50 +452,7 @@ def _try_one_mirror(
 
         logger.info("Sci-Hub CDP: PDF URL found: %s", pdf_url[:100])
 
-        # Download PDF via Playwright request API.
-        # page.request.get() uses browser cookies (DDoS-Guard session) but
-        # bypasses Edge tracking prevention that blocks page.evaluate(fetch()).
-        pdf_data = None
-
-        # Attempt 1-2: Playwright request API (bypasses tracking prevention)
-        for attempt in range(2):
-            try:
-                resp = page.request.get(pdf_url, timeout=30_000)
-                if resp.ok:
-                    body = resp.body()
-                    if body and len(body) > 100:
-                        pdf_data = body
-                        break
-                logger.info("Sci-Hub CDP: request attempt %d got HTTP %s for %s",
-                            attempt+1, resp.status, doi)
-            except Exception as req_err:
-                logger.info("Sci-Hub CDP: request attempt %d failed for %s: %s",
-                            attempt+1, doi, req_err)
-            if attempt < 1:
-                time.sleep(3)
-
-        # Attempt 3: browser fetch fallback (works for same-origin storage)
-        if not pdf_data:
-            try:
-                import base64 as _b64
-                b64_data = page.evaluate("""
-                    async (url) => {
-                        const resp = await fetch(url);
-                        if (!resp.ok) throw new Error('HTTP ' + resp.status);
-                        const blob = await resp.blob();
-                        const buf = await blob.arrayBuffer();
-                        const bytes = new Uint8Array(buf);
-                        let binary = '';
-                        const chunk = 8192;
-                        for (let i = 0; i < bytes.length; i += chunk) {
-                            binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
-                        }
-                        return btoa(binary);
-                    }
-                """, pdf_url)
-                pdf_data = _b64.b64decode(b64_data)
-            except Exception:
-                pass
+        pdf_data = _download_pdf(page, pdf_url, doi, base_url)
 
         if not pdf_data or len(pdf_data) < 100:
             logger.warning("Sci-Hub CDP: could not download PDF for %s after all attempts", doi)
