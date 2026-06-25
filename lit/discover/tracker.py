@@ -428,8 +428,8 @@ def discover_s2_ids(author_dir: str, save: bool = False) -> list[dict]:
 _NON_JOURNAL_DOI_PATTERNS = [
     r"^10\.1117/12\.",                                            # SPIE proceedings
     r"^10\.1117/2\.",                                             # SPIE Newsroom
-    r"^10\.1364/(cleo|fio|ntm|microscopy|cosi|up\.|translational|ls\.|sensors)",  # OSA conferences
-    r"^10\.1109/(cleo|leos|ipcon|lissa|sensors)",                # IEEE conferences
+    r"^10\.1364/(cleo|fio|ntm|microscopy|cosi|up\.|translational|ls\.|sensors|np\.|brain|nlo|wsof|nano|ofc|dh\.|isa\.|sof\.|oic\.|ipr)",  # OSA/Optica conferences
+    r"^10\.1109/(cleo|leos|ipcon|lissa|sensors|icton|jstqe)",    # IEEE conferences + transit
     r"^10\.23919/cleo",                                          # IEEE CLEO
     r"^10\.1096/fasebj",                                         # FASEB abstracts
     r"^10\.1158/1538-7445",                                      # AACR abstracts
@@ -441,6 +441,9 @@ _NON_JOURNAL_DOI_PATTERNS = [
     r"^10\.21203/rs",                                            # ResearchSquare
     r"^10\.(26434/chemrxiv|33774/chemrxiv)",                     # ChemRxiv
     r"^10\.1101/",                                               # bioRxiv/medRxiv preprints
+    r"^10\.1145/",                                               # ACM conferences (AAAI-adjacent)
+    r"^10\.1609/aaai",                                           # AAAI
+    r"^10\.24963/ijcai",                                         # IJCAI
 ]
 
 
