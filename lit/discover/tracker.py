@@ -618,71 +618,123 @@ def _normalize_family(name: str) -> str:
     return name.lower().strip().replace("-", "").replace(" ", "")
 
 
-def _extract_institution(raw: str) -> str:
-    """Extract the main institution name from a CrossRef affiliation string.
+def _match_author_in_authorships(authorships: list, family_name: str,
+                                  given_initial: str | None = None) -> list[str]:
+    """Find target author's institutions from an OpenAlex authorships list.
 
-    CrossRef affiliation strings are full department-level addresses like:
-      "Weldon School of BME, Purdue University, West Lafayette, Indiana"
-    This function normalizes them to just the institution name:
-      "Purdue University"
+    OpenAlex authorships have structure:
+        [{"author": {"display_name": "...", "id": "..."},
+          "institutions": [{"display_name": "Purdue University", ...}]}]
 
-    Handles "X University", "University of X", "X Institute", etc.
-    Falls back to the cleaned raw string if no pattern matches.
+    Returns institution display_name strings for the matched author.
     """
-    import re
-    # Clean whitespace/newlines + normalize common abbreviations
-    raw_clean = re.sub(r"\s+", " ", raw.replace("\n", " ").replace("\r", "")).strip()
-    raw_clean = re.sub(r"\bUniv\.\s*", "University ", raw_clean, flags=re.IGNORECASE)
-
-    # Pattern 1: "X University" — prefer 1-word match (most precise)
-    # Try just 1 capitalized word before "University" first
-    m = re.search(r"([A-Z][\w-]*\s+University)", raw_clean)
-    if m:
-        return m.group(1)
-    # Then try 2-word (e.g., "New York University")
-    m = re.search(r"([A-Z][\w-]*\s+[A-Z][\w-]*\s+University)", raw_clean)
-    if m:
-        return m.group(1)
-    # Then 3-word
-    m = re.search(r"([A-Z][\w-]*\s+[A-Z][\w-]*\s+[A-Z][\w-]*\s+University)", raw_clean)
-    if m:
-        return m.group(1)
-
-    # Pattern 2: "University of X..." (up to comma/semicolon)
-    m = re.search(r"(University of [^,;]+)", raw_clean)
-    if m:
-        return m.group(1).strip()
-
-    # Pattern 3: "X Institute" or "X College" (1-3 capitalized words)
-    m = re.search(r"([A-Z][\w-]*(?:\s+[A-Z][\w-]*){0,2}\s+(?:Institute|College))", raw_clean)
-    if m:
-        return m.group(1)
-
-    return raw_clean
+    target_family = _normalize_family(family_name)
+    target_initial = given_initial.lower().strip() if given_initial else None
+    institutions = []
+    for au in authorships:
+        author = au.get("author", {})
+        name = author.get("display_name", "") or ""
+        name_parts = name.lower().split()
+        if not name_parts:
+            continue
+        # Match family name (last token, normalized)
+        if _normalize_family(name_parts[-1]) != target_family:
+            continue
+        # Match given initial (first token)
+        given = name_parts[0] if len(name_parts) > 1 else ""
+        if target_initial and given and not given.startswith(target_initial):
+            continue
+        # Collect institutions (already standardized by OpenAlex)
+        for inst in au.get("institutions", []):
+            inst_name = inst.get("display_name", "").strip()
+            if inst_name:
+                institutions.append(inst_name)
+    return institutions
 
 
-# Keywords that indicate a real institution name (vs department/city fragments)
-_INSTITUTION_KEYWORDS = frozenset({
-    "university", "institute", "college", "laboratory", "laboratories",
-    "hospital", "center", "centre", "school", "academy", "polytechnic",
-    "foundation", "corporation", "council", "observatory", "museum",
-})
+_OA_HEADERS = {"User-Agent": "lit-skill/1.0 (mailto:research@example.com)"}
 
 
-def _is_institution_like(name: str) -> bool:
-    """Check if an affiliation string looks like an institution, not a department/city fragment."""
-    name_lower = name.lower()
-    return any(kw in name_lower for kw in _INSTITUTION_KEYWORDS)
+def _openalex_batch_affiliations(
+    dois: list[str], family_name: str, given_initial: str | None = None
+) -> dict[str, list[str]]:
+    """Batch query OpenAlex for author-level institutions.
+
+    Args:
+        dois: List of DOIs to look up (up to 50 per batch).
+        family_name: Target author's family name.
+        given_initial: Target author's given name first letter.
+
+    Returns:
+        {doi: [institution_name, ...]} for DOIs where the target author was found.
+    """
+    results: dict[str, list[str]] = {}
+    batch_size = 50
+
+    for i in range(0, len(dois), batch_size):
+        batch = dois[i:i + batch_size]
+        doi_filter = "|".join(batch)
+        try:
+            resp = requests.get(
+                "https://api.openalex.org/works",
+                params={"filter": f"doi:{doi_filter}", "per-page": batch_size},
+                headers=_OA_HEADERS,
+                timeout=30,
+            )
+            if resp.status_code != 200:
+                time.sleep(0.5)
+                continue
+        except Exception:
+            time.sleep(0.5)
+            continue
+
+        for w in resp.json().get("results", []):
+            raw_doi = (w.get("doi") or "").replace("https://doi.org/", "").lower().strip()
+            if raw_doi not in {d.lower() for d in batch}:
+                continue
+            authorships = w.get("authorships", [])
+            insts = _match_author_in_authorships(authorships, family_name, given_initial)
+            if insts:
+                # Dedupe within same paper
+                seen = set()
+                unique = []
+                for inst in insts:
+                    if inst.lower() not in seen:
+                        seen.add(inst.lower())
+                        unique.append(inst)
+                results[raw_doi] = unique
+        time.sleep(0.2)  # be polite
+
+    return results
+
+
+def _openalex_get_author_affiliations(
+    doi: str, family_name: str, given_initial: str | None = None
+) -> list[str]:
+    """Get affiliations for a specific author from a single DOI via OpenAlex.
+
+    Used by _check_affiliation() for per-DOI confidence checks in track.
+    """
+    try:
+        resp = requests.get(
+            f"https://api.openalex.org/works/doi:{doi}",
+            headers=_OA_HEADERS,
+            timeout=10,
+        )
+        if resp.status_code != 200:
+            return []
+        authorships = resp.json().get("authorships", [])
+        return _match_author_in_authorships(authorships, family_name, given_initial)
+    except Exception:
+        return []
 
 
 def _crossref_get_author_affiliations(
     doi: str, family_name: str, given_initial: str | None = None
 ) -> list[str]:
-    """Get affiliations for a SPECIFIC author from CrossRef.
+    """Get affiliations for a SPECIFIC author from CrossRef (FALLBACK).
 
-    Filters to only the target author (by family name + optional given initial),
-    not all co-authors. This is critical because CrossRef returns per-author
-    affiliation lists.
+    Used only when OpenAlex lookup fails. Prefer _openalex_get_author_affiliations().
     """
     try:
         resp = requests.get(
@@ -746,7 +798,7 @@ def build_affiliations(author_dir: str, sample_per_year: int = 3) -> dict:
         given_initial = None
 
     console.print(f"\n[bold cyan]━━━ Affiliation Builder: {target_name} ━━━[/bold cyan]")
-    console.print(f"[dim]Matching: family={family_name!r}, initial={given_initial!r}[/dim]")
+    console.print(f"[dim]Data source: OpenAlex | family={family_name!r}, initial={given_initial!r}[/dim]")
 
     # 1. Get all DOIs + years from Zotero collection
     conn = _local_db()
@@ -796,33 +848,29 @@ def build_affiliations(author_dir: str, sample_per_year: int = 3) -> dict:
 
     console.print(f"[dim]Sampling {len(all_samples)} papers across {len(papers_by_year)} years (≤{sample_per_year}/year)[/dim]")
 
-    # 3. Query CrossRef for each sample
-    year_affil_counts: dict[str, Counter] = defaultdict(Counter)  # year -> {affil: count}
+    # 3. Batch query OpenAlex (50 DOIs at a time) — much faster than per-DOI CrossRef
+    all_dois = [doi for _, doi in all_samples]
+    console.print(f"[dim]Batch querying OpenAlex ({len(all_dois)} DOIs)...[/dim]")
+    affil_map = _openalex_batch_affiliations(all_dois, family_name, given_initial)
+    console.print(f"[dim]Got affiliation data for {len(affil_map)}/{len(all_dois)} papers[/dim]")
+
+    # 4. Count affiliations per year
+    year_affil_counts: dict[str, Counter] = defaultdict(Counter)
     year_sample_count: dict[str, int] = defaultdict(int)
 
     for i, (year, doi) in enumerate(all_samples):
-        affs = _crossref_get_author_affiliations(doi, family_name, given_initial)
         year_sample_count[year] += 1
-
+        affs = affil_map.get(doi.lower().strip(), [])
         if affs:
-            # Normalize each affiliation to institution name + dedupe within paper
+            # OpenAlex institutions are already standardized — no normalization needed
             seen = set()
             for aff in affs:
-                normalized = _extract_institution(aff)
-                # Skip non-institution fragments (department names, cities, etc.)
-                if not _is_institution_like(normalized):
-                    continue
-                # Deduplicate similar normalized strings
-                if not any(normalized.lower() == s for s in seen):
-                    seen.add(normalized.lower())
-                    year_affil_counts[year][normalized] += 1
-            if seen:
-                console.print(f"  [dim]{year} [{i+1}/{len(all_samples)}] {doi[:35]:35s} → {', '.join(seen)}[/dim]")
-            else:
-                console.print(f"  [dim]{year} [{i+1}/{len(all_samples)}] {doi[:35]:35s} → (no institution)[/dim]")
+                if aff.lower() not in seen:
+                    seen.add(aff.lower())
+                    year_affil_counts[year][aff] += 1
+            console.print(f"  [dim]{year} [{i+1}/{len(all_samples)}] {doi[:35]:35s} → {', '.join(seen)}[/dim]")
         else:
             console.print(f"  [dim]{year} [{i+1}/{len(all_samples)}] {doi[:35]:35s} → (no affil data)[/dim]")
-        time.sleep(0.3)
 
     # 4. Compute confirmed affiliations per year (>50% threshold)
     result: dict[str, list[dict]] = {}
@@ -862,29 +910,27 @@ def build_affiliations(author_dir: str, sample_per_year: int = 3) -> dict:
     return result
 
 
-def _check_crossref_affiliation(doi: str, known_affiliations: list[str],
-                                affiliation_history: dict | None = None,
-                                paper_year: str | None = None,
-                                family_name: str | None = None,
-                                given_initial: str | None = None) -> bool | None:
-    """Check if a DOI's TARGET AUTHOR matches known affiliations via CrossRef.
+def _check_affiliation(doi: str, known_affiliations: list[str],
+                       affiliation_history: dict | None = None,
+                       paper_year: str | None = None,
+                       family_name: str | None = None,
+                       given_initial: str | None = None) -> bool | None:
+    """Check if a DOI's TARGET AUTHOR matches known affiliations via OpenAlex.
 
+    Uses OpenAlex (primary) with CrossRef fallback.
     Filters to only the target author (by family name + optional given initial).
-    This avoids false positives from co-author affiliations.
 
     If affiliation_history is provided with paper_year, checks against
     that year's affiliations (and adjacent years for moving tolerance).
 
     Returns:
         True  — affiliation match found (high confidence)
-        False — CrossRef returned data but no affiliation match (low confidence)
-        None  — CrossRef lookup failed or no baseline to check (no signal)
+        False — data returned but no affiliation match (low confidence)
+        None  — lookup failed or no baseline to check (no signal)
     """
     # Build the set of affiliations to check against
     if affiliation_history and paper_year:
-        # Check the paper's year ± 1 year (moving tolerance)
         check_years = [str(int(paper_year) + d) for d in (-1, 0, 1) if paper_year]
-        # Also include recent years (last 3 years of history) for ongoing moves
         all_years = sorted(affiliation_history.keys())
         if all_years:
             recent_years = all_years[-3:]
@@ -898,33 +944,18 @@ def _check_crossref_affiliation(doi: str, known_affiliations: list[str],
         affils_to_check = known_affiliations
 
     if not affils_to_check:
-        return None  # no baseline to check against
+        return None
 
-    # Get only the target author's affiliations
+    # Get target author's affiliations (OpenAlex primary, CrossRef fallback)
     if family_name:
-        affs = _crossref_get_author_affiliations(doi, family_name, given_initial)
+        affs = _openalex_get_author_affiliations(doi, family_name, given_initial)
+        if not affs:
+            affs = _crossref_get_author_affiliations(doi, family_name, given_initial)
     else:
-        # Fallback: no author filter (legacy behavior, less precise)
-        affs = []
-        try:
-            resp = requests.get(
-                f"https://api.crossref.org/works/{doi}",
-                headers={"User-Agent": "lit-skill/1.0 (mailto:research@example.com)"},
-                timeout=10,
-            )
-            if resp.status_code != 200:
-                return None
-            authors = resp.json()["message"].get("author", [])
-            for a in authors:
-                for aff in a.get("affiliation", []):
-                    name = aff.get("name", "").strip()
-                    if name:
-                        affs.append(name)
-        except Exception:
-            return None
+        return None
 
     if not affs:
-        return None  # CrossRef miss or target author has no affiliation listed
+        return None
 
     known_lower = [a.lower() for a in affils_to_check]
     for aff_name in affs:
@@ -932,7 +963,6 @@ def _check_crossref_affiliation(doi: str, known_affiliations: list[str],
         for known in known_lower:
             if known in aff_lower or aff_lower in known:
                 return True
-    # Target author's affiliations don't match any known
     return False
 
 
@@ -1013,7 +1043,7 @@ def find_new_papers(author_dir: str) -> list[dict]:
         confidence = "high"  # default: trust (DOI pool is already scoped)
 
         if known_affiliations or aff_history:
-            aff_match = _check_crossref_affiliation(
+            aff_match = _check_affiliation(
                 doi, known_affiliations,
                 affiliation_history=aff_history,
                 paper_year=None,  # S2/CrossRef DOI doesn't carry year in track
