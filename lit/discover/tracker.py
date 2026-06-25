@@ -716,6 +716,9 @@ def find_new_papers(author_dir: str) -> list[dict]:
             if aff_match is False:
                 confidence = "low"
             time.sleep(0.3)  # polite CrossRef rate limit
+        else:
+            # No known_affiliations → can't verify, default to low
+            confidence = "low"
 
         result.append({
             "doi": doi,
