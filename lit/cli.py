@@ -104,9 +104,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--download", action="store_true", help="检测后自动下载 PDF")
 
     # ── discover-s2 ──
-    p = sub.add_parser("discover-s2", help="通过 DOI 反查发现所有 S2 author ID")
+    p = sub.add_parser("discover-s2", help="通过 DOI 反查发现所有 S2 author ID + 审计新论文")
     p.add_argument("author", help="people/ 下的作者目录名 (如 Ji-Xin_Cheng)")
     p.add_argument("--save", action="store_true", help="将发现的 ID 写入 profile.json")
+    p.add_argument("--download", action="store_true", help="注册新论文到 Zotero 并下载 PDF (implies --save)")
 
     return parser
 
@@ -233,8 +234,44 @@ def main():
             console.print("\n使用 --download 自动导入 + 快速下载 + 兜底")
 
     elif args.command == "discover-s2":
-        from lit.discover.tracker import discover_s2_ids
-        discover_s2_ids(args.author, save=args.save)
+        from lit.discover.tracker import discover_s2_ids, audit_new_papers
+
+        save = args.save or args.download
+        discover_s2_ids(args.author, save=save)
+
+        if save:
+            new_papers = audit_new_papers(args.author)
+            if new_papers and args.download:
+                from lit.discover.import_ref import run as import_run
+                from lit.batch.quick import run_single as quick_single
+                from lit.batch.attach import run_single as attach_single
+
+                console.print(f"\n[bold]━━━ 下载 {len(new_papers)} 篇新论文 ━━━[/bold]")
+                ok = 0
+                for i, p in enumerate(new_papers):
+                    doi = p["doi"]
+                    title = (p.get("title") or "")[:50]
+                    console.print(f"\n  [{i+1}/{len(new_papers)}] {doi}")
+                    console.print(f"  [dim]{title}[/dim]")
+
+                    result = import_run(doi)
+                    if not result.get("item_key"):
+                        console.print(f"    [yellow]⚠ import failed[/yellow]")
+                        continue
+
+                    qr = quick_single(result.get("doi", doi))
+                    if qr and qr["status"] in ("attached", "already_has"):
+                        console.print(f"    [green]✓ quick[/green]")
+                        ok += 1
+                    else:
+                        ar = attach_single(result.get("doi", doi))
+                        if ar and ar["status"] in ("attached", "already_has"):
+                            console.print(f"    [green]✓ attach[/green]")
+                            ok += 1
+                        else:
+                            console.print(f"    [yellow]⚠ download failed[/yellow]")
+
+                console.print(f"\n[bold green]Done: {ok}/{len(new_papers)} downloaded[/bold green]")
 
 
 if __name__ == "__main__":

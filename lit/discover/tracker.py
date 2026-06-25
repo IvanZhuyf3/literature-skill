@@ -12,6 +12,7 @@ lit/discover/tracker.py — 增量论文追踪
 from __future__ import annotations
 
 import json
+import re
 import time
 import unicodedata
 from datetime import datetime, timedelta
@@ -225,13 +226,11 @@ def discover_s2_ids(author_dir: str, save: bool = False) -> list[dict]:
     norm_target = _normalize_name(target_name)
     # _normalize_name strips everything to alnum lowercase, e.g. "jixincheng"
     # We need the raw parts for surname/initial — re-normalize preserving structure
-    import re as _re
-    import unicodedata as _ud
     def _norm_preserve(s: str) -> str:
         """Normalize name preserving word boundaries (accents stripped, dashes→space)."""
-        s = _ud.normalize("NFKD", s)
-        s = "".join(c for c in s if not _ud.combining(c))
-        s = _re.sub(r"[\u2010-\u2015\u2212\-]", " ", s)  # all dash variants → space
+        s = unicodedata.normalize("NFKD", s)
+        s = "".join(c for c in s if not unicodedata.combining(c))
+        s = re.sub(r"[\u2010-\u2015\u2212\-]", " ", s)  # all dash variants → space
         return s.strip()
 
     target_parts = _norm_preserve(target_name).lower().split()
@@ -422,6 +421,191 @@ def discover_s2_ids(author_dir: str, save: bool = False) -> list[dict]:
         console.print(f"\n[green]✓ Saved {len(all_ids)} S2 IDs to profile.json[/green]")
 
     return candidates
+
+
+# ── S2 Full Audit (DOI gap finder) ──
+
+_NON_JOURNAL_DOI_PATTERNS = [
+    r"^10\.1117/12\.",                                            # SPIE proceedings
+    r"^10\.1117/2\.",                                             # SPIE Newsroom
+    r"^10\.1364/(cleo|fio|ntm|microscopy|cosi|up\.|translational|ls\.|sensors)",  # OSA conferences
+    r"^10\.1109/(cleo|leos|ipcon|lissa|sensors)",                # IEEE conferences
+    r"^10\.23919/cleo",                                          # IEEE CLEO
+    r"^10\.1096/fasebj",                                         # FASEB abstracts
+    r"^10\.1158/1538-7445",                                      # AACR abstracts
+    r"^10\.1158/(1538-8514|1557-3265|1940-6207)",                # AACR symposia
+    r"^10\.(1007/978|1016/b978|1201/b|1142/978)",                # Book chapters
+    r"\.s\d{3}$",                                                # Supplementary
+    r"^10\.15278/isms",                                          # ISMS conference
+    r"^10\.1002/sdtp",                                           # SysMetEx conference
+    r"^10\.21203/rs",                                            # ResearchSquare
+    r"^10\.(26434/chemrxiv|33774/chemrxiv)",                     # ChemRxiv
+    r"^10\.1101/",                                               # bioRxiv/medRxiv preprints
+]
+
+
+def _is_likely_journal(doi: str, pub_types: list[str] | None = None) -> bool:
+    """Determine if a DOI is likely a journal article.
+
+    DOI prefix denylist takes priority (reliable for known conf/abstract
+    patterns). S2 publicationTypes used as secondary signal for DOIs
+    that don't match any denylist pattern.
+    """
+    # Denylist first — S2 sometimes misclassifies conferences as JournalArticle
+    d = doi.lower()
+    for pattern in _NON_JOURNAL_DOI_PATTERNS:
+        if re.search(pattern, d):
+            return False
+    # Then check S2 publicationTypes for remaining
+    if pub_types:
+        if "JournalArticle" in pub_types or "Review" in pub_types:
+            return True
+        if "Conference" in pub_types:
+            return False
+    return True
+
+
+def _fetch_all_s2_dois(s2_ids: list[str]) -> set[str]:
+    """Fetch ALL DOIs from all S2 author profiles (full scan, not incremental)."""
+    all_dois: set[str] = set()
+    for sid in s2_ids:
+        offset = 0
+        while True:
+            params = {"fields": "externalIds", "limit": 100, "offset": offset}
+            try:
+                resp = requests.get(
+                    f"https://api.semanticscholar.org/graph/v1/author/{sid}/papers",
+                    params=params, headers=_s2_headers(), timeout=15,
+                )
+                if resp.status_code == 429:
+                    console.print(f"[yellow]  S2 rate limited on {sid}, sleeping 5s...[/yellow]")
+                    time.sleep(5)
+                    continue
+                if resp.status_code != 200:
+                    console.print(f"[red]  S2 error {sid}: HTTP {resp.status_code}[/red]")
+                    break
+                data = resp.json()
+            except Exception as e:
+                console.print(f"[red]  S2 error {sid}: {e}[/red]")
+                break
+
+            for p in data.get("data", []):
+                doi = p.get("externalIds", {}).get("DOI")
+                if doi:
+                    all_dois.add(doi.lower())
+
+            if "next" not in data:
+                break
+            offset = data["next"]
+            time.sleep(0.5)
+        console.print(f"[dim]  {sid}: cumulative {len(all_dois)} DOIs[/dim]")
+    return all_dois
+
+
+def audit_new_papers(author_dir: str) -> list[dict]:
+    """Full audit: find journal papers on S2 not yet in Zotero.
+
+    Fetches ALL papers from all S2 profiles (full scan), diffs with the
+    entire Zotero library, filters to journal articles only via S2
+    publicationTypes + DOI prefix denylist.
+
+    Args:
+        author_dir: Directory name under people/ (e.g. "Ji-Xin_Cheng").
+            Profile must already have s2_ids populated (run discover-s2 --save first).
+
+    Returns:
+        List of {"doi", "title", "year", "venue"} sorted by year desc.
+    """
+    profile = _load_profile(author_dir)
+    s2_ids = profile.get("s2_ids", [])
+    if not s2_ids:
+        console.print("[yellow]No S2 IDs in profile. Run discover-s2 --save first.[/yellow]")
+        return []
+
+    target_name = profile.get("name", author_dir)
+    console.print(f"\n[bold cyan]━━━ S2 Full Audit: {target_name} ━━━[/bold cyan]")
+
+    # 1. Fetch ALL DOIs from all S2 profiles
+    console.print(f"[dim]Fetching all papers from {len(s2_ids)} S2 profiles...[/dim]")
+    all_s2_dois = _fetch_all_s2_dois(s2_ids)
+    console.print(f"  S2 union: {len(all_s2_dois)} unique DOIs")
+
+    # 2. Diff with ALL Zotero DOIs
+    zotero_dois = _get_zotero_dois()
+    new_dois = all_s2_dois - zotero_dois
+    console.print(f"  In Zotero: {len(zotero_dois)} | New: {len(new_dois)}")
+
+    if not new_dois:
+        console.print("[green]No new papers found.[/green]")
+        return []
+
+    # 3. Batch query S2 for metadata + publicationTypes
+    new_dois_list = sorted(new_dois)
+    s2_headers = _s2_headers()
+    s2_headers["Content-Type"] = "application/json"
+    s2_input = [f"DOI:{d}" for d in new_dois_list]
+
+    papers_info: list[dict] = []
+    for i in range(0, len(s2_input), 500):
+        batch = s2_input[i : i + 500]
+        try:
+            resp = requests.post(
+                "https://api.semanticscholar.org/graph/v1/paper/batch",
+                params={"fields": "title,year,venue,publicationTypes"},
+                headers=s2_headers, json={"ids": batch}, timeout=60,
+            )
+            if resp.status_code == 429:
+                console.print("[yellow]S2 rate limited, retrying in 5s...[/yellow]")
+                time.sleep(5)
+                continue
+            if resp.status_code != 200:
+                console.print(f"[red]Batch metadata HTTP {resp.status_code}[/red]")
+                break
+            results = resp.json()
+            for j, paper in enumerate(results):
+                doi = new_dois_list[i + j]
+                info = {"doi": doi}
+                if paper:
+                    info["title"] = paper.get("title", "")
+                    info["year"] = paper.get("year")
+                    info["venue"] = paper.get("venue", "")
+                    info["pub_types"] = paper.get("publicationTypes", [])
+                else:
+                    info["title"] = ""
+                    info["year"] = None
+                    info["venue"] = ""
+                    info["pub_types"] = []
+                papers_info.append(info)
+            console.print(f"[dim]  Batch {i//500+1}: {sum(1 for p in results if p)}/{len(batch)} found[/dim]")
+        except Exception as e:
+            console.print(f"[red]Batch metadata error: {e}[/red]")
+            break
+        time.sleep(0.5)
+
+    # 4. Filter to journal articles
+    journal_papers = [p for p in papers_info if _is_likely_journal(p["doi"], p.get("pub_types"))]
+    journal_papers.sort(key=lambda p: p.get("year") or 0, reverse=True)
+
+    filtered_out = len(papers_info) - len(journal_papers)
+    console.print(f"  Journal articles: {len(journal_papers)} (filtered {filtered_out} conferences/abstracts/chapters)")
+
+    # 5. Print table
+    if journal_papers:
+        from rich.table import Table
+        table = Table(title=f"\nNew journal papers not in Zotero ({len(journal_papers)})")
+        table.add_column("Year", width=6)
+        table.add_column("DOI", style="cyan", width=35)
+        table.add_column("Title", ratio=3)
+        table.add_column("Venue", width=25)
+
+        for p in journal_papers:
+            title = (p.get("title") or "")[:60]
+            venue = (p.get("venue") or "")[:25]
+            table.add_row(str(p.get("year") or "?"), p["doi"], title, venue)
+
+        console.print(table)
+
+    return journal_papers
 
 
 def find_new_papers(author_dir: str) -> list[dict]:
