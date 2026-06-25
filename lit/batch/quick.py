@@ -20,8 +20,13 @@ from lit.batch.common import collect_missing, batch_download
 console = Console()
 
 
-def run_single(doi: str) -> dict:
+def run_single(doi: str, item_key: str | None = None) -> dict:
     """对单篇 DOI 运行快速下载。
+
+    Args:
+        doi: DOI string.
+        item_key: Optional Zotero item key (skip find_by_doi if provided,
+                  e.g. when called right after import_ref).
 
     Returns:
         {"status": "attached"|"already_has"|"failed"|"not_in_zotero", ...}
@@ -31,7 +36,8 @@ def run_single(doi: str) -> dict:
     result = {"doi": doi, "item_key": None, "att_key": None, "status": None}
 
     # ── 1. 查 Zotero item ──
-    item_key = zot.find_by_doi(doi)
+    if not item_key:
+        item_key = zot.find_by_doi(doi)
     if item_key is None:
         console.print(f"  [red]DOI 不在 Zotero 库中: {doi}[/red]")
         console.print(f"  [dim]先运行 lit import {doi} 注册条目[/dim]")

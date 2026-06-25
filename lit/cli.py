@@ -220,12 +220,13 @@ def main():
                     console.print(f"  [yellow]⚠ 注册失败: {p['doi']}[/yellow]")
                     continue
 
-                qr = quick_single(result["doi"])
+                ik = result["item_key"]
+                qr = quick_single(result["doi"], item_key=ik)
                 if qr and qr["status"] in ("attached", "already_has"):
                     console.print(f"  [green]✓ {p['doi']}[/green]")
                 else:
                     console.print(f"  [dim]quick 未命中，尝试 publisher adapter...[/dim]")
-                    ar = attach_single(result["doi"])
+                    ar = attach_single(result["doi"], item_key=ik)
                     if ar and ar["status"] in ("attached", "already_has"):
                         console.print(f"  [green]✓ {p['doi']} (attach)[/green]")
                     else:
@@ -259,12 +260,13 @@ def main():
                         console.print(f"    [yellow]⚠ import failed[/yellow]")
                         continue
 
-                    qr = quick_single(result.get("doi", doi))
+                    ik = result["item_key"]
+                    qr = quick_single(result.get("doi", doi), item_key=ik)
                     if qr and qr["status"] in ("attached", "already_has"):
                         console.print(f"    [green]✓ quick[/green]")
                         ok += 1
                     else:
-                        ar = attach_single(result.get("doi", doi))
+                        ar = attach_single(result.get("doi", doi), item_key=ik)
                         if ar and ar["status"] in ("attached", "already_has"):
                             console.print(f"    [green]✓ attach[/green]")
                             ok += 1
