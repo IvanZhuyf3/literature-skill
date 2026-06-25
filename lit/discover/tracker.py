@@ -608,6 +608,41 @@ def audit_new_papers(author_dir: str) -> list[dict]:
     return journal_papers
 
 
+def _check_crossref_affiliation(doi: str, known_affiliations: list[str]) -> bool | None:
+    """Check if a DOI's authors match known affiliations via CrossRef.
+
+    Returns:
+        True  — affiliation match found (high confidence)
+        False — CrossRef returned data but no affiliation match (low confidence)
+        None  — CrossRef lookup failed (no signal, default to high)
+    """
+    if not known_affiliations:
+        return None  # no baseline to check against
+
+    try:
+        resp = requests.get(
+            f"https://api.crossref.org/works/{doi}",
+            headers={"User-Agent": "lit-skill/1.0 (mailto:research@example.com)"},
+            timeout=10,
+        )
+        if resp.status_code != 200:
+            return None  # CrossRef miss — no signal
+
+        authors = resp.json()["message"].get("author", [])
+        known_lower = [a.lower() for a in known_affiliations]
+
+        for a in authors:
+            for aff in a.get("affiliation", []):
+                aff_name = (aff.get("name") or "").lower()
+                for known in known_lower:
+                    if known in aff_name or aff_name in known:
+                        return True
+        # CrossRef had data but no affiliation match
+        return False
+    except Exception:
+        return None
+
+
 def find_new_papers(author_dir: str) -> list[dict]:
     """Find papers not yet in Zotero for a tracked author.
 
@@ -615,7 +650,8 @@ def find_new_papers(author_dir: str) -> list[dict]:
         author_dir: directory name under people/ (e.g. "Ji-Xin_Cheng")
 
     Returns:
-        List of {"doi": str, "source": str} for new papers.
+        List of {"doi": str, "source": str, "confidence": "high"|"low"} for new papers.
+        Low confidence papers should be human-reviewed before import.
     """
     profile = _load_profile(author_dir)
     # Support multiple S2 IDs (S2 sometimes has duplicate profiles for the same person)
@@ -660,7 +696,8 @@ def find_new_papers(author_dir: str) -> list[dict]:
     new_dois = all_remote - zotero_dois
     console.print(f"[dim]In Zotero: {len(zotero_dois)} | New: {len(new_dois)}[/dim]")
 
-    # Tag source
+    # Tag source + assess confidence
+    known_affiliations = profile.get("known_affiliations", [])
     result = []
     for doi in sorted(new_dois):
         source = []
@@ -668,7 +705,20 @@ def find_new_papers(author_dir: str) -> list[dict]:
             source.append("S2")
         if doi in crossref_dois:
             source.append("CrossRef")
-        result.append({"doi": doi, "source": "+".join(source)})
+
+        # Confidence assessment
+        confidence = "high"  # default: trust (DOI pool is already scoped)
+        if known_affiliations:
+            aff_match = _check_crossref_affiliation(doi, known_affiliations)
+            if aff_match is False:
+                confidence = "low"
+            time.sleep(0.3)  # polite CrossRef rate limit
+
+        result.append({
+            "doi": doi,
+            "source": "+".join(source),
+            "confidence": confidence,
+        })
 
     # Update profile timestamps
     profile_path = skill_base() / "people" / author_dir / "profile.json"

@@ -13,10 +13,14 @@
   "zotero_collection": "Dan Fu",
   "created": "2026-06-25",
   "s2_paper_count": 89,
-  "s2_last_check": "",
-  "crossref_last_check": "",
+  "s2_last_check": "2026-06-25",
+  "crossref_last_check": "2026-06-25",
   "s2_paper_counts": {
     "33283312": 89,
     "2144024282": 15
-  }
+  },
+  "known_affiliations": [
+    "Boston University",
+    "Purdue"
+  ]
 }

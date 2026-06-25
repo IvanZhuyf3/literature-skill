@@ -22,5 +22,10 @@
   },
   "s2_paper_count": 480,
   "s2_last_check": "2026-06-25",
-  "crossref_last_check": "2026-06-25"
+  "crossref_last_check": "2026-06-25",
+  "known_affiliations": [
+    "Institut Fresnel",
+    "CNRS",
+    "Aix-Marseille"
+  ]
 }
