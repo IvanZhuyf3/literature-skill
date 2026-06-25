@@ -1,0 +1,936 @@
+{
+  "Dan Fu": [
+    {
+      "doi": "10.1038/s41566-025-01841-8",
+      "year": "2026",
+      "key": "3F9CYTHQ",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.3938/phit.19.026",
+      "year": "2010",
+      "key": "UW6V6D36",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1038/s41592-024-02244-3",
+      "year": "2024",
+      "key": "XWC6J8EF",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.70675/2aba966dz35c3z4423z94a0zb0bc87a58b87",
+      "year": "2018",
+      "key": "AU76BF5D",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1364/pibm.2017.t4b.4",
+      "year": "2017",
+      "key": "RSGSNKJI",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1364/boe.1.000347",
+      "year": "2010",
+      "key": "9EBQ8GHS",
+      "reason": "institution mismatch",
+      "institutions": [
+        "LabCorp (United States)"
+      ]
+    }
+  ],
+  "Delong Zhang": [
+    {
+      "doi": "10.1002/anie.201306234",
+      "year": "2013",
+      "key": "8IUCUHIT",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1364/oe.558881",
+      "year": "2025",
+      "key": "VFBLU94C",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.48550/arxiv.2601.20632",
+      "year": "2026",
+      "key": "TEC7VD8K",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1002/ange.201306234",
+      "year": "2013",
+      "key": "TSXVFWCR",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1109/cleoe-eqec.2017.8087181",
+      "year": "2017",
+      "key": "PQH3TGNI",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1002/cphc.201600104",
+      "year": "2016",
+      "key": "3D9PNQ6X",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1117/12.3034797",
+      "year": "2024",
+      "key": "KBQEMGGS",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1364/oe.537581",
+      "year": "2024",
+      "key": "5A9GG62D",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1117/12.2686651",
+      "year": "2023",
+      "key": "3CIV3NII",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1364/oe.500765",
+      "year": "2023",
+      "key": "MAI6A2VR",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1117/1.ap.2.6.065002",
+      "year": "2020",
+      "key": "24VFENTF",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.3389/fcvm.2022.950018",
+      "year": "2022",
+      "key": "NV77W6IH",
+      "reason": "author not found",
+      "institutions": []
+    }
+  ],
+  "Hervé Rigneault": [
+    {
+      "doi": "10.1016/j.vibspec.2010.09.008",
+      "year": "2011",
+      "key": "5H9D2KAW",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1063/1.1641164",
+      "year": "2004",
+      "key": "989W4Q2C",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1117/1.3558735",
+      "year": "2011",
+      "key": "P4Z9W2C8",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1093/oso/9780195162608.003.0017",
+      "year": "1998",
+      "key": "Z6K4NZTH",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1117/12.290181",
+      "year": "1997",
+      "key": "WUSKHGI3",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1117/12.290182",
+      "year": "1997",
+      "key": "HNU8JDWQ",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.2184/lsj.24.94",
+      "year": "1996",
+      "key": "AIPRGEUH",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1103/physreva.54.2356",
+      "year": "1996",
+      "key": "D746SJ43",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1016/s0030-4018(98)00634-8",
+      "year": "1999",
+      "key": "4NKDT6SQ",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1007/s100190050101",
+      "year": "1999",
+      "key": "TQS5AH8R",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1117/12.192065",
+      "year": "1994",
+      "key": "BMZ2QF9K",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1117/12.141013",
+      "year": "1993",
+      "key": "R3ZWZM5M",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1364/josaa.23.001089",
+      "year": "2006",
+      "key": "AN9W4MJH",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1002/pssa.2210660232",
+      "year": "1981",
+      "key": "6D9SZX73",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1097/00006223-199211000-00006",
+      "year": "1992",
+      "key": "WW6EWW3B",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1007/978-3-642-36973-5_22",
+      "year": "2013",
+      "key": "H277DA6M",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.5034/inquiryjrnl_42.3.201",
+      "year": "2005",
+      "key": "JUW8VX3I",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1021/acsphotonics.1c02015",
+      "year": "2022",
+      "key": "Q9QG264F",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1097/brs.0b013e3182118adf",
+      "year": "2011",
+      "key": "2UAFR2X5",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1051/photon/20189220",
+      "year": "2018",
+      "key": "FJ24K7JI",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1088/978-0-7503-3059-6",
+      "year": "2021",
+      "key": "K4E8AGCC",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1109/lpt.2016.2531906",
+      "year": "2016",
+      "key": "74T8BB9Q",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1364/ol.36.000707",
+      "year": "2011",
+      "key": "3WX4VWQ2",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1364/ol.544222",
+      "year": "2025",
+      "key": "JHA6RC9M",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.23919/eusipco47968.2020.9287651",
+      "year": "2021",
+      "key": "RM5NG53R",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1111/j.1365-2818.2007.01777.x",
+      "year": "2007",
+      "key": "4VJ8BFRJ",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1016/j.optmat.2005.07.010",
+      "year": "2006",
+      "key": "DTRCZVV5",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1016/s0040-6090(97)00957-7",
+      "year": "1998",
+      "key": "URGX6BF9",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1016/s0030-4018(01)01034-3",
+      "year": "2001",
+      "key": "5VNHMTDS",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.4028/www.scientific.net/msf.239-241.717",
+      "year": "1997",
+      "key": "CM8MAS5P",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1364/ol.34.001789",
+      "year": "2009",
+      "key": "3K59S3Z2",
+      "reason": "institution mismatch",
+      "institutions": [
+        "Cegep de Saint Jerome"
+      ]
+    },
+    {
+      "doi": "10.1364/oe.24.000825",
+      "year": "2016",
+      "key": "RZGTIACN",
+      "reason": "institution mismatch",
+      "institutions": [
+        "Mosaic Company (United States)"
+      ]
+    },
+    {
+      "doi": "10.1364/oe.20.018085",
+      "year": "2012",
+      "key": "QDKFKSHS",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1364/oe.19.013056",
+      "year": "2011",
+      "key": "ZVJV9Z9R",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1364/oe.19.012562",
+      "year": "2011",
+      "key": "2QSIJ8TK",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1364/oe.14.012206",
+      "year": "2006",
+      "key": "H2QA4PK3",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1364/josab.26.001295",
+      "year": "2009",
+      "key": "H2ZMHVE3",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1364/josab.25.001655",
+      "year": "2008",
+      "key": "VMJFZTSJ",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1364/josab.18.000832",
+      "year": "2001",
+      "key": "TI8UQPN8",
+      "reason": "institution mismatch",
+      "institutions": [
+        "École Normale Supérieure - PSL",
+        "Laboratoire de Physique des Interfaces et des Couches Minces"
+      ]
+    },
+    {
+      "doi": "10.1364/josab.15.002712",
+      "year": "1998",
+      "key": "VTICV4C4",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1364/ao.45.007005",
+      "year": "2006",
+      "key": "KV396NBN",
+      "reason": "institution mismatch",
+      "institutions": [
+        "Cezanne (Italy)",
+        "Saint Paul University"
+      ]
+    },
+    {
+      "doi": "10.1364/ao.45.004497",
+      "year": "2006",
+      "key": "TVRR9XRC",
+      "reason": "institution mismatch",
+      "institutions": [
+        "Cegep de Saint Jerome"
+      ]
+    },
+    {
+      "doi": "10.1364/ao.38.005458",
+      "year": "1999",
+      "key": "7J293R4X",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1364/ao.38.003602",
+      "year": "1999",
+      "key": "ZEIHTIAS",
+      "reason": "institution mismatch",
+      "institutions": [
+        "École Normale Supérieure - PSL",
+        "Laboratoire de Neurosciences Cognitives"
+      ]
+    },
+    {
+      "doi": "10.1117/12.360091",
+      "year": "1999",
+      "key": "B59F42ME",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1117/12.360075",
+      "year": "1999",
+      "key": "WNP9F7SQ",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1117/12.300659",
+      "year": "1998",
+      "key": "FX7PUJF7",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1117/12.290191",
+      "year": "1997",
+      "key": "RJ7VWSTQ",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1109/cleoe.1994.635928",
+      "year": "1994",
+      "key": "2H83TEWP",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1103/physrevlett.104.239901",
+      "year": "2010",
+      "key": "FC7FIM5E",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1088/1464-4258/4/5/357",
+      "year": "2002",
+      "key": "GMMM8WQ8",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1080/10420150108216887",
+      "year": "2001",
+      "key": "Q25EIMKW",
+      "reason": "institution mismatch",
+      "institutions": [
+        "École Normale Supérieure - PSL",
+        "Délégation Provence et Corse"
+      ]
+    },
+    {
+      "doi": "10.1063/1.1764030",
+      "year": "2004",
+      "key": "R9GNNNEA",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.3788/ai.2026.10001",
+      "year": "2026",
+      "key": "MSFIFUQI",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1117/12.3098677",
+      "year": "2026",
+      "key": "9BFTEXGW",
+      "reason": "author not found",
+      "institutions": []
+    }
+  ],
+  "Ji-Xin Cheng": [
+    {
+      "doi": "10.1117/12.2608050",
+      "year": "2022",
+      "key": "75IMM3QH",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1016/j.bbalip.2014.02.003",
+      "year": "2014",
+      "key": "RIH33AF5",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1364/oe.404869",
+      "year": "2020",
+      "key": "EGAP7DJD",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1364/prj.384604",
+      "year": "2020",
+      "key": "MB93J2WP",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1117/1.jbo.19.8.086005",
+      "year": "2014",
+      "key": "6JRE4SNQ",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1364/oe.469050",
+      "year": "2022",
+      "key": "FNQTL3VH",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1364/optica.564920",
+      "year": "2025",
+      "key": "2YNVTXI3",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1117/1.jbo.25.1.014507",
+      "year": "2019",
+      "key": "2RQTZLS8",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1364/oe.14.003942",
+      "year": "2006",
+      "key": "7HPSF5MD",
+      "reason": "institution mismatch",
+      "institutions": [
+        "Weldon City Schools"
+      ]
+    },
+    {
+      "doi": "10.1364/oe.17.001282",
+      "year": "2009",
+      "key": "XQRTXDQN",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1016/b978-0-12-408051-5.00014-0",
+      "year": "2013",
+      "key": "W96CG5XA",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1021/jz401638e",
+      "year": "2013",
+      "key": "AQKGME6E",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1152/jn.00154.2009",
+      "year": "2010",
+      "key": "6R5PE6DW",
+      "reason": "institution mismatch",
+      "institutions": [
+        "Weldon City Schools"
+      ]
+    },
+    {
+      "doi": "10.1017/s1431927609093350",
+      "year": "2009",
+      "key": "J7XMD6RF",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1161/atvbaha.109.189316",
+      "year": "2009",
+      "key": "D93MAQ29",
+      "reason": "institution mismatch",
+      "institutions": [
+        "Indiana University – Purdue University Indianapolis"
+      ]
+    },
+    {
+      "doi": "10.1017/s1431927607073928",
+      "year": "2007",
+      "key": "WXH95XIG",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1016/s0928-4931(01)00286-7",
+      "year": "2001",
+      "key": "EV25ECVS",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1002/jccs.197500045",
+      "year": "1975",
+      "key": "TUFM78EB",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1515/9783110710687-049",
+      "year": "2021",
+      "key": "VKHT26D9",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1117/1.ap.2.3.036006",
+      "year": "2020",
+      "key": "C485VJ82",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1002/advs.201903117",
+      "year": "2020",
+      "key": "M29W6NFI",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1002/mds3.10018",
+      "year": "2018",
+      "key": "QC3TVBZQ",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1201/9781315206554-14",
+      "year": "2017",
+      "key": "9XC753U9",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1201/b12907-30",
+      "year": "2016",
+      "key": "5GFD9AUT",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1201/b12907-9",
+      "year": "2016",
+      "key": "B24VDQB3",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1364/oe.588218",
+      "year": "2026",
+      "key": "BFSUQ8P4",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1364/aop.568778",
+      "year": "2026",
+      "key": "RPGSRXI6",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1364/optica.580672",
+      "year": "2026",
+      "key": "BX55HHF3",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1101/2025.03.26.645466",
+      "year": "2025",
+      "key": "SFXSARM9",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1101/2025.08.20.671345",
+      "year": "2025",
+      "key": "RDX3T79F",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1101/2023.03.06.531387",
+      "year": "2023",
+      "key": "ZV4JAR2Z",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1117/12.3108132",
+      "year": "2026",
+      "key": "4ID5HEJH",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1021/acs.analchem.5c06534",
+      "year": "2026",
+      "key": "EIAACWWA",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1103/physrevlett.106.259901",
+      "year": "2011",
+      "key": "NEZB9TWC",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1002/jbio.201200506",
+      "year": "2012",
+      "key": "84SD458S",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1016/j.cbpa.2016.08.007",
+      "year": "2016",
+      "key": "XZSSPGNW",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.4066/biomedicalresearch-c7-018",
+      "year": "2018",
+      "key": "7D9TF8UK",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1016/j.molcel.2020.12.028",
+      "year": "2021",
+      "key": "D4H5X26E",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1039/a903593a",
+      "year": "1999",
+      "key": "H6WECMHE",
+      "reason": "author not found",
+      "institutions": []
+    }
+  ],
+  "Ping Wang": [
+    {
+      "doi": "10.5674/jjppp.28.1",
+      "year": "2010",
+      "key": "UEB7VETS",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1016/j.saa.2026.127926",
+      "year": "2026",
+      "key": "P5ZH6MMJ",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1088/0256-307x/24/1/008",
+      "year": "2007",
+      "key": "7K8F6E6A",
+      "reason": "author not found",
+      "institutions": []
+    }
+  ],
+  "Wei Min": [
+    {
+      "doi": "10.1117/12.2608050",
+      "year": "2022",
+      "key": "75IMM3QH",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1002/cjoc.20020201008",
+      "year": "2002",
+      "key": "CE3FQ7RZ",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1016/s0957-4166(02)00658-4",
+      "year": "2002",
+      "key": "SM4GXKXG",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1016/j.mcp.2007.08.001",
+      "year": "2008",
+      "key": "FBPT9J8D",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.4314/ajbr.v6i3.54038",
+      "year": "2010",
+      "key": "AM3RNUS8",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1016/s0301-4622(02)00145-x",
+      "year": "2002",
+      "key": "CHSXDIF8",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.2174/0929866033408255",
+      "year": "2003",
+      "key": "GGQJTQ5T",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1039/b307831k",
+      "year": "2003",
+      "key": "IQ5PV2CD",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1016/s0301-4622(02)00320-4",
+      "year": "2003",
+      "key": "SMKNX44D",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1246/cl.190195",
+      "year": "2019",
+      "key": "FNIQINM3",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1038/s41592-024-02186-w",
+      "year": "2024",
+      "key": "ANFJPKN5",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1016/j.stemcr.2024.04.006",
+      "year": "2024",
+      "key": "DKSTQFXB",
+      "reason": "author not found",
+      "institutions": []
+    },
+    {
+      "doi": "10.1038/s41467-024-49404-9",
+      "year": "2024",
+      "key": "7FUJJT99",
+      "reason": "author not found",
+      "institutions": []
+    }
+  ]
+}
