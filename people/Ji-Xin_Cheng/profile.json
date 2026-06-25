@@ -59,8 +59,39 @@
   "s2_paper_count": 444,
   "known_affiliations": [
     "Boston University",
-    "Purdue",
-    "Lawrence Berkeley",
-    "Penn State"
-  ]
+    "Harvard University",
+    "Purdue University"
+  ],
+  "affiliation_history": {
+    "2002": [
+      "Harvard University"
+    ],
+    "2004": [
+      "Harvard University"
+    ],
+    "2005": [
+      "Purdue University"
+    ],
+    "2015": [
+      "Purdue University"
+    ],
+    "2017": [
+      "Purdue University"
+    ],
+    "2019": [
+      "Boston University"
+    ],
+    "2022": [
+      "Boston University"
+    ],
+    "2023": [
+      "Boston University"
+    ],
+    "2024": [
+      "Boston University"
+    ],
+    "2026": [
+      "Boston University"
+    ]
+  }
 }

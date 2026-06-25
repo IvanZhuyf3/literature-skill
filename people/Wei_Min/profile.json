@@ -29,6 +29,36 @@
   "s2_last_check": "2026-06-25",
   "crossref_last_check": "2026-06-25",
   "known_affiliations": [
-    "Columbia University"
-  ]
+    "Columbia University",
+    "Harvard University"
+  ],
+  "affiliation_history": {
+    "2005": [
+      "Harvard University"
+    ],
+    "2008": [
+      "Harvard University"
+    ],
+    "2009": [
+      "Harvard University"
+    ],
+    "2013": [
+      "Columbia University"
+    ],
+    "2017": [
+      "Columbia University"
+    ],
+    "2018": [
+      "Columbia University"
+    ],
+    "2023": [
+      "Columbia University"
+    ],
+    "2025": [
+      "Columbia University"
+    ],
+    "2026": [
+      "Columbia University"
+    ]
+  }
 }

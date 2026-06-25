@@ -613,8 +613,77 @@ def audit_new_papers(author_dir: str) -> list[dict]:
 
 # ── Affiliation Database Builder ──
 
-def _crossref_get_affiliations(doi: str) -> list[str]:
-    """Get all author affiliation strings from CrossRef for a single DOI."""
+def _normalize_family(name: str) -> str:
+    """Normalize family name for matching: lowercase, strip, remove hyphens/spaces."""
+    return name.lower().strip().replace("-", "").replace(" ", "")
+
+
+def _extract_institution(raw: str) -> str:
+    """Extract the main institution name from a CrossRef affiliation string.
+
+    CrossRef affiliation strings are full department-level addresses like:
+      "Weldon School of BME, Purdue University, West Lafayette, Indiana"
+    This function normalizes them to just the institution name:
+      "Purdue University"
+
+    Handles "X University", "University of X", "X Institute", etc.
+    Falls back to the cleaned raw string if no pattern matches.
+    """
+    import re
+    # Clean whitespace/newlines + normalize common abbreviations
+    raw_clean = re.sub(r"\s+", " ", raw.replace("\n", " ").replace("\r", "")).strip()
+    raw_clean = re.sub(r"\bUniv\.\s*", "University ", raw_clean, flags=re.IGNORECASE)
+
+    # Pattern 1: "X University" — prefer 1-word match (most precise)
+    # Try just 1 capitalized word before "University" first
+    m = re.search(r"([A-Z][\w-]*\s+University)", raw_clean)
+    if m:
+        return m.group(1)
+    # Then try 2-word (e.g., "New York University")
+    m = re.search(r"([A-Z][\w-]*\s+[A-Z][\w-]*\s+University)", raw_clean)
+    if m:
+        return m.group(1)
+    # Then 3-word
+    m = re.search(r"([A-Z][\w-]*\s+[A-Z][\w-]*\s+[A-Z][\w-]*\s+University)", raw_clean)
+    if m:
+        return m.group(1)
+
+    # Pattern 2: "University of X..." (up to comma/semicolon)
+    m = re.search(r"(University of [^,;]+)", raw_clean)
+    if m:
+        return m.group(1).strip()
+
+    # Pattern 3: "X Institute" or "X College" (1-3 capitalized words)
+    m = re.search(r"([A-Z][\w-]*(?:\s+[A-Z][\w-]*){0,2}\s+(?:Institute|College))", raw_clean)
+    if m:
+        return m.group(1)
+
+    return raw_clean
+
+
+# Keywords that indicate a real institution name (vs department/city fragments)
+_INSTITUTION_KEYWORDS = frozenset({
+    "university", "institute", "college", "laboratory", "laboratories",
+    "hospital", "center", "centre", "school", "academy", "polytechnic",
+    "foundation", "corporation", "council", "observatory", "museum",
+})
+
+
+def _is_institution_like(name: str) -> bool:
+    """Check if an affiliation string looks like an institution, not a department/city fragment."""
+    name_lower = name.lower()
+    return any(kw in name_lower for kw in _INSTITUTION_KEYWORDS)
+
+
+def _crossref_get_author_affiliations(
+    doi: str, family_name: str, given_initial: str | None = None
+) -> list[str]:
+    """Get affiliations for a SPECIFIC author from CrossRef.
+
+    Filters to only the target author (by family name + optional given initial),
+    not all co-authors. This is critical because CrossRef returns per-author
+    affiliation lists.
+    """
     try:
         resp = requests.get(
             f"https://api.crossref.org/works/{doi}",
@@ -624,8 +693,16 @@ def _crossref_get_affiliations(doi: str) -> list[str]:
         if resp.status_code != 200:
             return []
         authors = resp.json()["message"].get("author", [])
+        target_family = _normalize_family(family_name)
+        target_initial = given_initial.lower().strip() if given_initial else None
         affs = []
         for a in authors:
+            fn = _normalize_family(a.get("family", ""))
+            if fn != target_family:
+                continue
+            gn = a.get("given", "").lower().strip()
+            if target_initial and gn and not gn.startswith(target_initial):
+                continue
             for aff in a.get("affiliation", []):
                 name = aff.get("name", "").strip()
                 if name:
@@ -659,7 +736,17 @@ def build_affiliations(author_dir: str, sample_per_year: int = 3) -> dict:
     target_name = profile.get("name", author_dir)
     collection = profile.get("zotero_collection", target_name)
 
+    # Parse family name + given initial from target_name (assumes "Given Family")
+    parts = target_name.rsplit(None, 1)
+    if len(parts) == 2:
+        given_first, family_name = parts[0], parts[1]
+        given_initial = given_first[0] if given_first else None
+    else:
+        family_name = target_name
+        given_initial = None
+
     console.print(f"\n[bold cyan]━━━ Affiliation Builder: {target_name} ━━━[/bold cyan]")
+    console.print(f"[dim]Matching: family={family_name!r}, initial={given_initial!r}[/dim]")
 
     # 1. Get all DOIs + years from Zotero collection
     conn = _local_db()
@@ -714,19 +801,25 @@ def build_affiliations(author_dir: str, sample_per_year: int = 3) -> dict:
     year_sample_count: dict[str, int] = defaultdict(int)
 
     for i, (year, doi) in enumerate(all_samples):
-        affs = _crossref_get_affiliations(doi)
+        affs = _crossref_get_author_affiliations(doi, family_name, given_initial)
         year_sample_count[year] += 1
 
         if affs:
-            # Normalize: dedupe within same paper
+            # Normalize each affiliation to institution name + dedupe within paper
             seen = set()
             for aff in affs:
-                aff_lower = aff.lower()
-                # Deduplicate similar strings
-                if not any(s in aff_lower or aff_lower in s for s in seen):
-                    seen.add(aff_lower)
-                    year_affil_counts[year][aff] += 1
-            console.print(f"  [dim]{year} [{i+1}/{len(all_samples)}] {doi[:35]:35s} → {len(seen)} affils[/dim]")
+                normalized = _extract_institution(aff)
+                # Skip non-institution fragments (department names, cities, etc.)
+                if not _is_institution_like(normalized):
+                    continue
+                # Deduplicate similar normalized strings
+                if not any(normalized.lower() == s for s in seen):
+                    seen.add(normalized.lower())
+                    year_affil_counts[year][normalized] += 1
+            if seen:
+                console.print(f"  [dim]{year} [{i+1}/{len(all_samples)}] {doi[:35]:35s} → {', '.join(seen)}[/dim]")
+            else:
+                console.print(f"  [dim]{year} [{i+1}/{len(all_samples)}] {doi[:35]:35s} → (no institution)[/dim]")
         else:
             console.print(f"  [dim]{year} [{i+1}/{len(all_samples)}] {doi[:35]:35s} → (no affil data)[/dim]")
         time.sleep(0.3)
@@ -771,8 +864,13 @@ def build_affiliations(author_dir: str, sample_per_year: int = 3) -> dict:
 
 def _check_crossref_affiliation(doi: str, known_affiliations: list[str],
                                 affiliation_history: dict | None = None,
-                                paper_year: str | None = None) -> bool | None:
-    """Check if a DOI's authors match known affiliations via CrossRef.
+                                paper_year: str | None = None,
+                                family_name: str | None = None,
+                                given_initial: str | None = None) -> bool | None:
+    """Check if a DOI's TARGET AUTHOR matches known affiliations via CrossRef.
+
+    Filters to only the target author (by family name + optional given initial).
+    This avoids false positives from co-author affiliations.
 
     If affiliation_history is provided with paper_year, checks against
     that year's affiliations (and adjacent years for moving tolerance).
@@ -802,28 +900,40 @@ def _check_crossref_affiliation(doi: str, known_affiliations: list[str],
     if not affils_to_check:
         return None  # no baseline to check against
 
-    try:
-        resp = requests.get(
-            f"https://api.crossref.org/works/{doi}",
-            headers={"User-Agent": "lit-skill/1.0 (mailto:research@example.com)"},
-            timeout=10,
-        )
-        if resp.status_code != 200:
-            return None  # CrossRef miss — no signal
+    # Get only the target author's affiliations
+    if family_name:
+        affs = _crossref_get_author_affiliations(doi, family_name, given_initial)
+    else:
+        # Fallback: no author filter (legacy behavior, less precise)
+        affs = []
+        try:
+            resp = requests.get(
+                f"https://api.crossref.org/works/{doi}",
+                headers={"User-Agent": "lit-skill/1.0 (mailto:research@example.com)"},
+                timeout=10,
+            )
+            if resp.status_code != 200:
+                return None
+            authors = resp.json()["message"].get("author", [])
+            for a in authors:
+                for aff in a.get("affiliation", []):
+                    name = aff.get("name", "").strip()
+                    if name:
+                        affs.append(name)
+        except Exception:
+            return None
 
-        authors = resp.json()["message"].get("author", [])
-        known_lower = [a.lower() for a in affils_to_check]
+    if not affs:
+        return None  # CrossRef miss or target author has no affiliation listed
 
-        for a in authors:
-            for aff in a.get("affiliation", []):
-                aff_name = (aff.get("name") or "").lower()
-                for known in known_lower:
-                    if known in aff_name or aff_name in known:
-                        return True
-        # CrossRef had data but no affiliation match
-        return False
-    except Exception:
-        return None
+    known_lower = [a.lower() for a in affils_to_check]
+    for aff_name in affs:
+        aff_lower = aff_name.lower()
+        for known in known_lower:
+            if known in aff_lower or aff_lower in known:
+                return True
+    # Target author's affiliations don't match any known
+    return False
 
 
 def find_new_papers(author_dir: str) -> list[dict]:
@@ -882,6 +992,15 @@ def find_new_papers(author_dir: str) -> list[dict]:
     # Tag source + assess confidence
     known_affiliations = profile.get("known_affiliations", [])
     aff_history = profile.get("affiliation_history")
+
+    # Parse family name + given initial for author-level affiliation filtering
+    _name = profile.get("name", author_dir)
+    _parts = _name.rsplit(None, 1)
+    if len(_parts) == 2:
+        family_name, given_initial = _parts[1], (_parts[0][0] if _parts[0] else None)
+    else:
+        family_name, given_initial = _name, None
+
     result = []
     for doi in sorted(new_dois):
         source = []
@@ -898,6 +1017,8 @@ def find_new_papers(author_dir: str) -> list[dict]:
                 doi, known_affiliations,
                 affiliation_history=aff_history,
                 paper_year=None,  # S2/CrossRef DOI doesn't carry year in track
+                family_name=family_name,
+                given_initial=given_initial,
             )
             if aff_match is False:
                 confidence = "low"

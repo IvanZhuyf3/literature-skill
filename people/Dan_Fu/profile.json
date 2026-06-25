@@ -24,7 +24,36 @@
     "2061347559": 4
   },
   "known_affiliations": [
-    "Boston University",
-    "Purdue"
-  ]
+    "Harvard University",
+    "University of Washington"
+  ],
+  "affiliation_history": {
+    "2014": [
+      "Harvard University"
+    ],
+    "2015": [
+      "Harvard University"
+    ],
+    "2016": [
+      "Harvard University"
+    ],
+    "2019": [
+      "University of Washington"
+    ],
+    "2020": [
+      "University of Washington"
+    ],
+    "2022": [
+      "University of Washington"
+    ],
+    "2023": [
+      "University of Washington"
+    ],
+    "2024": [
+      "University of Washington"
+    ],
+    "2025": [
+      "University of Washington"
+    ]
+  }
 }

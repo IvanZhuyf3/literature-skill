@@ -28,5 +28,31 @@
     "2291412875": 6,
     "2174929395": 4
   },
-  "known_affiliations": []
+  "known_affiliations": [
+    "Purdue University",
+    "Zhejiang University"
+  ],
+  "affiliation_history": {
+    "2011": [
+      "Purdue University"
+    ],
+    "2014": [
+      "Purdue University"
+    ],
+    "2015": [
+      "Purdue University"
+    ],
+    "2018": [
+      "Purdue University"
+    ],
+    "2022": [
+      "Zhejiang University"
+    ],
+    "2025": [
+      "Zhejiang University"
+    ],
+    "2026": [
+      "Zhejiang University"
+    ]
+  }
 }
