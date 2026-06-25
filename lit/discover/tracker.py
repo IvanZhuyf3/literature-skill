@@ -611,15 +611,195 @@ def audit_new_papers(author_dir: str) -> list[dict]:
     return journal_papers
 
 
-def _check_crossref_affiliation(doi: str, known_affiliations: list[str]) -> bool | None:
+# ── Affiliation Database Builder ──
+
+def _crossref_get_affiliations(doi: str) -> list[str]:
+    """Get all author affiliation strings from CrossRef for a single DOI."""
+    try:
+        resp = requests.get(
+            f"https://api.crossref.org/works/{doi}",
+            headers={"User-Agent": "lit-skill/1.0 (mailto:research@example.com)"},
+            timeout=10,
+        )
+        if resp.status_code != 200:
+            return []
+        authors = resp.json()["message"].get("author", [])
+        affs = []
+        for a in authors:
+            for aff in a.get("affiliation", []):
+                name = aff.get("name", "").strip()
+                if name:
+                    affs.append(name)
+        return affs
+    except Exception:
+        return []
+
+
+def build_affiliations(author_dir: str, sample_per_year: int = 3) -> dict:
+    """Build year-by-year affiliation database from papers in Zotero.
+
+    Samples up to `sample_per_year` papers per year from the author's
+    Zotero collection, queries CrossRef for affiliations, and computes
+    per-year affiliation frequency. Affiliations appearing in >50% of
+    sampled papers for a year are confirmed.
+
+    Reports results for human double-check before saving.
+
+    Args:
+        author_dir: Directory name under people/.
+        sample_per_year: Max papers to sample per year (default 3).
+
+    Returns:
+        Dict: {year: [confirmed_affiliations]}.
+    """
+    import random
+    from collections import defaultdict, Counter
+
+    profile = _load_profile(author_dir)
+    target_name = profile.get("name", author_dir)
+    collection = profile.get("zotero_collection", target_name)
+
+    console.print(f"\n[bold cyan]━━━ Affiliation Builder: {target_name} ━━━[/bold cyan]")
+
+    # 1. Get all DOIs + years from Zotero collection
+    conn = _local_db()
+    if not conn:
+        console.print("[red]Cannot access Zotero local DB[/red]")
+        return {}
+    try:
+        rows = conn.execute("""
+            SELECT DISTINCT idv.value, idv2.value
+            FROM collectionItems ci
+            JOIN collections c ON ci.collectionID = c.collectionID
+            JOIN itemData id ON ci.itemID = id.itemID
+            JOIN fields f ON id.fieldID = f.fieldID
+            JOIN itemDataValues idv ON id.valueID = idv.valueID
+            LEFT JOIN itemData id2 ON ci.itemID = id2.itemID
+            LEFT JOIN fields f2 ON id2.fieldID = f2.fieldID
+            LEFT JOIN itemDataValues idv2 ON id2.valueID = idv2.valueID
+            WHERE c.collectionName = ? AND f.fieldName = 'DOI'
+              AND f2.fieldName = 'date'
+        """, (collection,)).fetchall()
+    finally:
+        conn.close()
+
+    # Group DOIs by year
+    papers_by_year: dict[str, list[str]] = defaultdict(list)
+    for row in rows:
+        doi = row["value"] if isinstance(row, dict) else row[0]
+        date_str = (row["value2"] if isinstance(row, dict) else row[1]) or ""
+        year = date_str[:4] if date_str[:4].isdigit() else ""
+        if doi and year:
+            papers_by_year[year].append(doi)
+
+    if not papers_by_year:
+        console.print("[yellow]No papers with DOI+year found[/yellow]")
+        return {}
+
+    # 2. Sample per year
+    all_samples: list[tuple[str, str]] = []  # (year, doi)
+    for year in sorted(papers_by_year):
+        dois = papers_by_year[year]
+        if len(dois) <= sample_per_year:
+            sampled = dois
+        else:
+            sampled = random.sample(dois, sample_per_year)
+        for doi in sampled:
+            all_samples.append((year, doi))
+
+    console.print(f"[dim]Sampling {len(all_samples)} papers across {len(papers_by_year)} years (≤{sample_per_year}/year)[/dim]")
+
+    # 3. Query CrossRef for each sample
+    year_affil_counts: dict[str, Counter] = defaultdict(Counter)  # year -> {affil: count}
+    year_sample_count: dict[str, int] = defaultdict(int)
+
+    for i, (year, doi) in enumerate(all_samples):
+        affs = _crossref_get_affiliations(doi)
+        year_sample_count[year] += 1
+
+        if affs:
+            # Normalize: dedupe within same paper
+            seen = set()
+            for aff in affs:
+                aff_lower = aff.lower()
+                # Deduplicate similar strings
+                if not any(s in aff_lower or aff_lower in s for s in seen):
+                    seen.add(aff_lower)
+                    year_affil_counts[year][aff] += 1
+            console.print(f"  [dim]{year} [{i+1}/{len(all_samples)}] {doi[:35]:35s} → {len(seen)} affils[/dim]")
+        else:
+            console.print(f"  [dim]{year} [{i+1}/{len(all_samples)}] {doi[:35]:35s} → (no affil data)[/dim]")
+        time.sleep(0.3)
+
+    # 4. Compute confirmed affiliations per year (>50% threshold)
+    result: dict[str, list[dict]] = {}
+    for year in sorted(year_affil_counts):
+        sample_n = year_sample_count[year]
+        threshold = sample_n / 2
+        confirmed = []
+        for affil, count in year_affil_counts[year].most_common():
+            if count > threshold:
+                confirmed.append({"name": affil, "count": count, "of": sample_n})
+        if confirmed:
+            result[year] = confirmed
+
+    # 5. Print report
+    from rich.table import Table
+    table = Table(title=f"\nAffiliation history for {target_name}")
+    table.add_column("Year", style="bold")
+    table.add_column("Confirmed affiliations (>50%)", ratio=3)
+    table.add_column("Sample", width=8)
+
+    for year in sorted(result):
+        affils = result[year]
+        affil_str = "; ".join(f"{a['name']} ({a['count']}/{a['of']})" for a in affils)
+        table.add_row(year, affil_str, f"{year_sample_count[year]} papers")
+
+    console.print(table)
+
+    # 6. Compute simplified known_affiliations (unique across all years)
+    all_confirmed = set()
+    for year_affils in result.values():
+        for a in year_affils:
+            all_confirmed.add(a["name"])
+    console.print(f"\n[bold]Suggested known_affiliations ({len(all_confirmed)} unique):[/bold]")
+    for a in sorted(all_confirmed):
+        console.print(f"  {a}")
+
+    return result
+
+
+def _check_crossref_affiliation(doi: str, known_affiliations: list[str],
+                                affiliation_history: dict | None = None,
+                                paper_year: str | None = None) -> bool | None:
     """Check if a DOI's authors match known affiliations via CrossRef.
+
+    If affiliation_history is provided with paper_year, checks against
+    that year's affiliations (and adjacent years for moving tolerance).
 
     Returns:
         True  — affiliation match found (high confidence)
         False — CrossRef returned data but no affiliation match (low confidence)
-        None  — CrossRef lookup failed (no signal, default to high)
+        None  — CrossRef lookup failed or no baseline to check (no signal)
     """
-    if not known_affiliations:
+    # Build the set of affiliations to check against
+    if affiliation_history and paper_year:
+        # Check the paper's year ± 1 year (moving tolerance)
+        check_years = [str(int(paper_year) + d) for d in (-1, 0, 1) if paper_year]
+        # Also include recent years (last 3 years of history) for ongoing moves
+        all_years = sorted(affiliation_history.keys())
+        if all_years:
+            recent_years = all_years[-3:]
+            check_years = set(check_years + recent_years)
+        affils_to_check = []
+        for y in check_years:
+            if y in affiliation_history:
+                affils_to_check.extend(affiliation_history[y])
+        affils_to_check = list(set(affils_to_check))
+    else:
+        affils_to_check = known_affiliations
+
+    if not affils_to_check:
         return None  # no baseline to check against
 
     try:
@@ -632,7 +812,7 @@ def _check_crossref_affiliation(doi: str, known_affiliations: list[str]) -> bool
             return None  # CrossRef miss — no signal
 
         authors = resp.json()["message"].get("author", [])
-        known_lower = [a.lower() for a in known_affiliations]
+        known_lower = [a.lower() for a in affils_to_check]
 
         for a in authors:
             for aff in a.get("affiliation", []):
@@ -701,6 +881,7 @@ def find_new_papers(author_dir: str) -> list[dict]:
 
     # Tag source + assess confidence
     known_affiliations = profile.get("known_affiliations", [])
+    aff_history = profile.get("affiliation_history")
     result = []
     for doi in sorted(new_dois):
         source = []
@@ -711,8 +892,13 @@ def find_new_papers(author_dir: str) -> list[dict]:
 
         # Confidence assessment
         confidence = "high"  # default: trust (DOI pool is already scoped)
-        if known_affiliations:
-            aff_match = _check_crossref_affiliation(doi, known_affiliations)
+
+        if known_affiliations or aff_history:
+            aff_match = _check_crossref_affiliation(
+                doi, known_affiliations,
+                affiliation_history=aff_history,
+                paper_year=None,  # S2/CrossRef DOI doesn't carry year in track
+            )
             if aff_match is False:
                 confidence = "low"
             time.sleep(0.3)  # polite CrossRef rate limit

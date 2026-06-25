@@ -109,6 +109,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--save", action="store_true", help="将发现的 ID 写入 profile.json")
     p.add_argument("--download", action="store_true", help="注册新论文到 Zotero 并下载 PDF (implies --save)")
 
+    # ── build-affiliations ──
+    p = sub.add_parser("build-affiliations", help="从 Zotero 论文自动构建年度 affiliation 数据库")
+    p.add_argument("author", help="people/ 下的作者目录名")
+    p.add_argument("--sample", type=int, default=3, help="每年采样数 (默认 3)")
+    p.add_argument("--save", action="store_true", help="保存到 profile.json")
+
     return parser
 
 
@@ -274,6 +280,32 @@ def main():
                             console.print(f"    [yellow]⚠ download failed[/yellow]")
 
                 console.print(f"\n[bold green]Done: {ok}/{len(new_papers)} downloaded[/bold green]")
+
+    elif args.command == "build-affiliations":
+        from lit.discover.tracker import build_affiliations
+        result = build_affiliations(args.author, sample_per_year=args.sample)
+
+        if args.save and result:
+            import json as _json
+            profile_path = Path(__file__).resolve().parent.parent / "people" / args.author / "profile.json"
+            with open(profile_path, "r", encoding="utf-8") as f:
+                profile = _json.load(f)
+
+            # Save year-by-year history
+            profile["affiliation_history"] = {
+                year: [a["name"] for a in affils]
+                for year, affils in result.items()
+            }
+            # Also update flat known_affiliations
+            all_affs = set()
+            for year_affils in result.values():
+                for a in year_affils:
+                    all_affs.add(a["name"])
+            profile["known_affiliations"] = sorted(all_affs)
+
+            with open(profile_path, "w", encoding="utf-8") as f:
+                _json.dump(profile, f, indent=2, ensure_ascii=False)
+            console.print(f"\n[green]✓ Saved affiliation_history + known_affiliations to profile.json[/green]")
 
 
 if __name__ == "__main__":
