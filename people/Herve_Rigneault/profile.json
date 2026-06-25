@@ -24,11 +24,30 @@
   "s2_last_check": "2026-06-25",
   "crossref_last_check": "2026-06-25",
   "known_affiliations": [
-    "Marseille University"
+    "Aix Marseille University",
+    "Institut Fresnel"
   ],
   "affiliation_history": {
-    "2024": [
-      "Marseille University"
+    "1995": [
+      "Aix Marseille University"
+    ],
+    "2000": [
+      "Aix Marseille University"
+    ],
+    "2005": [
+      "Aix Marseille University"
+    ],
+    "2010": [
+      "Aix Marseille University"
+    ],
+    "2015": [
+      "Aix Marseille University"
+    ],
+    "2020": [
+      "Aix Marseille University"
+    ],
+    "2025": [
+      "Aix Marseille University"
     ]
   }
 }
