@@ -103,6 +103,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("author", help="people/ 下的作者目录名 (如 Ji-Xin_Cheng)")
     p.add_argument("--download", action="store_true", help="检测后自动下载 PDF")
 
+    # ── discover-s2 ──
+    p = sub.add_parser("discover-s2", help="通过 DOI 反查发现所有 S2 author ID")
+    p.add_argument("author", help="people/ 下的作者目录名 (如 Ji-Xin_Cheng)")
+    p.add_argument("--save", action="store_true", help="将发现的 ID 写入 profile.json")
+
     return parser
 
 
@@ -226,6 +231,10 @@ def main():
                         console.print(f"  [yellow]⚠ 下载失败: {p['doi']}[/yellow]")
         else:
             console.print("\n使用 --download 自动导入 + 快速下载 + 兜底")
+
+    elif args.command == "discover-s2":
+        from lit.discover.tracker import discover_s2_ids
+        discover_s2_ids(args.author, save=args.save)
 
 
 if __name__ == "__main__":

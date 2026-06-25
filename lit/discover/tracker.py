@@ -191,6 +191,239 @@ def _crossref_fetch_dois(aliases: list[str], since: str) -> set[str]:
     return dois
 
 
+# ── S2 ID Discovery (via DOI cross-reference) ──
+
+def discover_s2_ids(author_dir: str, save: bool = False) -> list[dict]:
+    """Discover all S2 author IDs for a tracked person via DOI cross-reference.
+
+    Batch-queries S2 paper API with all DOIs from the person's Zotero
+    collection, collects all author appearances, then filters by
+    surname + given-first-initial match.
+
+    Since the DOI set is already scoped to the person's own papers,
+    false-positive rate is near zero — any author with matching surname
+    and first initial on multiple papers is almost certainly a duplicate
+    S2 profile.
+
+    Args:
+        author_dir: Directory name under people/ (e.g. "Ji-Xin_Cheng").
+        save: If True, write discovered IDs to profile.json.
+
+    Returns:
+        List of dicts: {s2_id, name, count, paper_count, confirmed}.
+    """
+    from collections import Counter
+
+    profile = _load_profile(author_dir)
+    target_name = profile.get("name", "")
+    collection = profile.get("zotero_collection", target_name)
+    if not target_name:
+        console.print("[red]No 'name' field in profile.json[/red]")
+        return []
+
+    # Parse surname + given first initial
+    norm_target = _normalize_name(target_name)
+    # _normalize_name strips everything to alnum lowercase, e.g. "jixincheng"
+    # We need the raw parts for surname/initial — re-normalize preserving structure
+    import re as _re
+    import unicodedata as _ud
+    def _norm_preserve(s: str) -> str:
+        """Normalize name preserving word boundaries (accents stripped, dashes→space)."""
+        s = _ud.normalize("NFKD", s)
+        s = "".join(c for c in s if not _ud.combining(c))
+        s = _re.sub(r"[\u2010-\u2015\u2212\-]", " ", s)  # all dash variants → space
+        return s.strip()
+
+    target_parts = _norm_preserve(target_name).lower().split()
+    if len(target_parts) < 2:
+        console.print(f"[red]Cannot parse name: {target_name!r}[/red]")
+        return []
+    surname = target_parts[-1]
+    given_first_initial = target_parts[0][0]
+    console.print(f"[dim]Target: {target_name} → surname={surname!r}, initial={given_first_initial!r}[/dim]")
+
+    # Get DOIs from Zotero local DB for this collection
+    conn = _local_db()
+    if not conn:
+        console.print("[red]Cannot access Zotero local DB[/red]")
+        return []
+    try:
+        rows = conn.execute("""
+            SELECT DISTINCT idv.value
+            FROM collectionItems ci
+            JOIN collections c ON ci.collectionID = c.collectionID
+            JOIN itemData id ON ci.itemID = id.itemID
+            JOIN fields f ON id.fieldID = f.fieldID
+            JOIN itemDataValues idv ON id.valueID = idv.valueID
+            WHERE c.collectionName = ? AND f.fieldName = 'DOI'
+        """, (collection,)).fetchall()
+    finally:
+        conn.close()
+
+    dois = [r[0] if isinstance(r, str) else r["value"] for r in rows]
+    if not dois:
+        console.print(f"[yellow]No DOIs found in collection '{collection}'[/yellow]")
+        return []
+
+    console.print(f"[dim]Zotero collection '{collection}': {len(dois)} DOIs[/dim]")
+
+    # Batch query S2 paper API (500/batch, fields=authors)
+    s2_headers = _s2_headers()
+    s2_headers["Content-Type"] = "application/json"
+    s2_input = [f"DOI:{d}" for d in dois]
+    all_papers: list[dict] = []
+    found = 0
+
+    for i in range(0, len(s2_input), 500):
+        batch = s2_input[i : i + 500]
+        try:
+            resp = requests.post(
+                "https://api.semanticscholar.org/graph/v1/paper/batch",
+                params={"fields": "authors"},
+                headers=s2_headers,
+                json={"ids": batch},
+                timeout=60,
+            )
+            if resp.status_code == 429:
+                console.print("[yellow]S2 rate limited, retrying in 5s...[/yellow]")
+                time.sleep(5)
+                resp = requests.post(
+                    "https://api.semanticscholar.org/graph/v1/paper/batch",
+                    params={"fields": "authors"},
+                    headers=s2_headers,
+                    json={"ids": batch},
+                    timeout=60,
+                )
+            if resp.status_code != 200:
+                console.print(f"[red]S2 batch API HTTP {resp.status_code}[/red]")
+                break
+            papers = resp.json()
+            all_papers.extend(papers)
+            found += sum(1 for p in papers if p)
+            console.print(f"[dim]  Batch {i//500+1}: {sum(1 for p in papers if p)}/{len(batch)} found[/dim]")
+        except Exception as e:
+            console.print(f"[red]S2 batch error: {e}[/red]")
+            break
+        time.sleep(0.5)
+
+    total_papers = len(all_papers)
+    console.print(f"[dim]S2 found {found}/{len(dois)} papers[/dim]")
+
+    # Collect all author appearances
+    author_counter: Counter[tuple[str, str]] = Counter()
+    for paper in all_papers:
+        if not paper:
+            continue
+        for a in paper.get("authors", []):
+            aid = a.get("authorId")
+            aname = a.get("name", "")
+            if aid and aid != "None":
+                author_counter[(aid, aname)] += 1
+
+    # Filter: surname matches + given first initial matches
+    candidates: list[dict] = []
+    for (aid, aname), count in author_counter.most_common():
+        norm_parts = _norm_preserve(aname).lower().split()
+        if len(norm_parts) < 2:
+            continue
+        if norm_parts[-1] != surname:
+            continue
+        given_initials = [p[0] for p in norm_parts[:-1] if p]
+        if not given_initials or given_initials[0] != given_first_initial:
+            continue
+
+        # Confirm: if any non-surname word starts with the target's
+        # second initial too, it's a stronger match.
+        # E.g. target "Ji-Xin" → given_parts = [ji, xin] → check if
+        # the name contains a word starting with "x"
+        target_given = _norm_preserve(" ".join(target_parts[:-1])).split()
+        confirmed = False
+        if len(target_given) >= 2:
+            second_initial = target_given[1][0]
+            for p in norm_parts[:-1]:
+                if p.startswith(second_initial):
+                    confirmed = True
+                    break
+        else:
+            confirmed = True  # single given name, initial match is enough
+
+        candidates.append({
+            "s2_id": aid,
+            "name": aname,
+            "count": count,
+            "confirmed": confirmed,
+        })
+
+    if not candidates:
+        console.print("[yellow]No matching S2 profiles found.[/yellow]")
+        return []
+
+    # Enrich with paper counts from S2 author API
+    console.print(f"[dim]Fetching paper counts for {len(candidates)} candidates...[/dim]")
+    for c in candidates:
+        if c.get("paper_count") is None:
+            c["paper_count"] = _s2_get_paper_count(c["s2_id"])
+            time.sleep(1.0)
+
+    # Print results
+    console.print(f"\n[bold cyan]━━━ S2 Profile Discovery: {target_name} ━━━[/bold cyan]")
+    console.print(f"  DOI pool: {len(dois)} papers | S2 matched: {found} | "
+                  f"Candidates: {len(candidates)}\n")
+
+    from rich.table import Table
+    table = Table(title=f"S2 profiles matching surname={surname!r} + initial={given_first_initial!r}")
+    table.add_column("Count", justify="right", style="bold")
+    table.add_column("%", justify="right")
+    table.add_column("S2 ID", style="cyan")
+    table.add_column("Name in S2")
+    table.add_column("S2 Papers", justify="right")
+    table.add_column("Match", justify="center")
+
+    for c in candidates:
+        pct = f"{c['count']/found*100:.1f}%" if found else "?"
+        match_label = "[green]✓[/green]" if c["confirmed"] else "[yellow]?[/yellow]"
+        table.add_row(
+            str(c["count"]),
+            pct,
+            c["s2_id"],
+            c["name"],
+            str(c["paper_count"] or "?"),
+            match_label,
+        )
+
+    console.print(table)
+
+    # Show which ones are new vs already in profile
+    existing_ids = set(str(x) for x in profile.get("s2_ids", []))
+    new_ids = [c for c in candidates if c["s2_id"] not in existing_ids]
+    if new_ids:
+        console.print(f"\n[bold yellow]New IDs not in profile.json: {len(new_ids)}[/bold yellow]")
+        for c in new_ids:
+            console.print(f"  {c['s2_id']}  {c['name']}  ({c['count']} co-authored)")
+
+    if save:
+        all_ids = sorted(
+            set(list(profile.get("s2_ids", [])) + [c["s2_id"] for c in candidates]),
+            key=lambda x: -next((c["count"] for c in candidates if c["s2_id"] == x), 0),
+        )
+        profile["s2_ids"] = all_ids
+
+        # Update paper counts
+        counts = profile.get("s2_paper_counts", {})
+        for c in candidates:
+            if c["paper_count"] is not None:
+                counts[c["s2_id"]] = c["paper_count"]
+        profile["s2_paper_counts"] = counts
+        profile["s2_paper_count"] = max(counts.values()) if counts else 0
+
+        profile_path = skill_base() / "people" / author_dir / "profile.json"
+        with open(profile_path, "w", encoding="utf-8") as f:
+            json.dump(profile, f, indent=2, ensure_ascii=False)
+        console.print(f"\n[green]✓ Saved {len(all_ids)} S2 IDs to profile.json[/green]")
+
+    return candidates
+
+
 def find_new_papers(author_dir: str) -> list[dict]:
     """Find papers not yet in Zotero for a tracked author.
 
