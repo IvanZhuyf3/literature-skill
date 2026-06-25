@@ -13,6 +13,7 @@ Public function:
 
 from __future__ import annotations
 
+import json
 import logging
 import random
 import re
@@ -25,7 +26,7 @@ import requests
 from rich.console import Console
 from rich.table import Table
 
-from lit.core.config import load as get_config, people as get_people_config
+from lit.core.config import load as get_config, people as get_people_config, skill_base
 from lit.core.crossref import search_by_title
 from lit.core.zotero import (
     assign_to_collection,
@@ -620,6 +621,71 @@ def print_summary(papers: list[dict], scholar_name: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Profile management
+# ---------------------------------------------------------------------------
+
+def _dir_name_from_scholar(name: str) -> str:
+    """Convert a Scholar display name to a filesystem-safe directory name.
+
+    "Ji-Xin Cheng" → "Ji-Xin_Cheng", "Hervé Rigneault" → "Herve_Rigneault".
+    Spaces → underscores, accents stripped.
+    """
+    import unicodedata
+    # Strip accents
+    stripped = "".join(c for c in unicodedata.normalize("NFKD", name) if not unicodedata.combining(c))
+    # Spaces → underscores
+    return stripped.strip().replace(" ", "_")
+
+
+def _ensure_profile(scholar_name: str, scholar_url: str) -> None:
+    """Create people/<dir>/profile.json if it doesn't exist yet.
+
+    This makes the author immediately trackable by ``lit track`` /
+    ``track_all.py`` and enables auto-collection assignment on future
+    ``lit import`` calls. S2 IDs and other fields are left empty — the
+    user fills them in later.
+    """
+    from datetime import datetime
+
+    dir_name = _dir_name_from_scholar(scholar_name)
+    profile_path = skill_base() / "people" / dir_name / "profile.json"
+
+    if profile_path.exists():
+        # Update scholar_url if we now have one and profile didn't
+        try:
+            with open(profile_path, "r", encoding="utf-8") as f:
+                profile = json.load(f)
+            if scholar_url and not profile.get("scholar_url"):
+                profile["scholar_url"] = scholar_url
+                with open(profile_path, "w", encoding="utf-8") as f:
+                    json.dump(profile, f, indent=2, ensure_ascii=False)
+                console.print(f"  [cyan]Updated scholar_url in {dir_name}/profile.json[/cyan]")
+        except Exception:
+            pass
+        return
+
+    # Create new profile
+    profile = {
+        "name": scholar_name,
+        "aliases": [scholar_name],
+        "affiliation": "",
+        "s2_ids": [],
+        "scholar_url": scholar_url,
+        "zotero_collection": scholar_name,
+        "created": datetime.now().strftime("%Y-%m-%d"),
+        "s2_paper_count": 0,
+        "s2_last_check": "",
+        "crossref_last_check": "",
+    }
+
+    profile_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(profile_path, "w", encoding="utf-8") as f:
+        json.dump(profile, f, indent=2, ensure_ascii=False)
+
+    console.print(f"  [cyan]Created people/{dir_name}/profile.json (tracking enabled)[/cyan]")
+
+
+# ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
 
@@ -641,6 +707,9 @@ def run(
 
     # Phase 1: Scrape
     papers, scholar_name = scrape_scholar_profile(url, cfg, max_papers=max_papers)
+
+    # Ensure people/<dir>/profile.json exists for tracking
+    _ensure_profile(scholar_name, url)
 
     # Phase 1b: DOI matching
     papers = match_dois(papers, cfg)

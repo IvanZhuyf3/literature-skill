@@ -100,6 +100,11 @@ python -m lit track <author> [--download]
 
 ### 被引链接图（Citation Map）
 
-检测库内论文的互相引用关系。每篇 .md（DOI 命名）的参考文献段落扫描 DOI，跟库里已有的 DOI 交叉匹配，生成引用网络数据。库够大（跨多个学者、整个领域）时价值显著，单学者仅自引意义不大。
+**状态：设计阶段，plan 见 `../Deep_research/plan.md` Phase 1B**
 
-**条件成熟再动手。**
+S2 API 直接提供引用关系 + context，不需要自己 parse 全文。两个方向：
+- ref（引用了谁）= 死数据，永久缓存
+- fwd（被谁引用）= 活数据，TTL 30 天
+
+CLI：`lit cite ref|fwd|ctx <DOI>`，输出带 `in_zotero` 标记。
+模块：`lit/cite/{s2_client,cache,cli}.py`。

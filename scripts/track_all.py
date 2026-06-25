@@ -22,7 +22,14 @@ import lit.discover.tracker as tr
 # Redirect tracker's console to suppress debug logs
 tr.console.file = StringIO()
 
-AUTHORS = ["Ji-Xin_Cheng", "Wei_Min", "Herve_Rigneault"]
+# Dynamically scan people/ for all tracked authors
+from pathlib import Path
+people_dir = Path(__file__).resolve().parent.parent / "people"
+AUTHORS = sorted(
+    d.name
+    for d in people_dir.iterdir()
+    if d.is_dir() and (d / "profile.json").exists()
+)
 results = {}
 
 for author in AUTHORS:
