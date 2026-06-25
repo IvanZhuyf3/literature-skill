@@ -363,7 +363,7 @@ CrossRef affiliation 数据**因出版商而异**，覆盖率差异极大：
 | Cheng | 87 | ~35 | 10 | 31 | Harvard(02-04)→Purdue(05-17)→BU(19-26) ✓ |
 | Delong Zhang | 44 | 18 | 7 | 16 | Purdue(11-18)→Zhejiang(22-26) ✓ |
 | Wei Min | ~30 | ~20 | 9 | ~15 | Harvard(05-09)→Columbia(13-26) ✓ |
-| Dan Fu | ~20 | ~12 | 9 | ~12 | Harvard(14-16)→UW(19-25) ✓ |
+| Dan Fu | ~20 | ~12 | 9 | ~12 | CrossRef: Harvard(14-16)→UW(19-25)；**bio 补满**: PKU(03)→Princeton(05-09,Warren Warren)→MIT(09-10)→Harvard(10-15)→UW(15-26) |
 | Hervé Rigneault | ~10 | ~3 | 1 | ~10 | Marseille（数据极稀） |
 
 覆盖率约 41%，但**轨迹足够清晰**——每个转折点都有数据锚定。即使覆盖率低，只要有一篇命中（如 Purdue），就足以区分同名假阳性。

@@ -1,0 +1,38 @@
+{
+  "10.1016/j.addr.2026.115779": {
+    "reason": "Access denied / no subscription (Elsevier - Advanced Drug Delivery Reviews). Adapter worked correctly, recognized publisher, but institutional access denied for this article.",
+    "date": "2026-06-24"
+  },
+  "10.1117/1.JBO.29.1.016008": {
+    "reason": "Publisher 'spie' is blacklisted (no institutional access / paywall). SPIE - Journal of Biomedical Optics. Adapter recognized publisher but cannot access behind paywall.",
+    "date": "2026-06-24"
+  },
+  "10.1117/12.2692986": {
+    "reason": "Publisher 'spie' blacklisted in adapter; SPIE conf proceeding behind paywall, no institutional access",
+    "date": "2026-06-24"
+  },
+  "10.1117/12.2648675": {
+    "reason": "Publisher 'spie' blacklisted (no institutional access / paywall). SPIE conference proceeding - 'Imaging protein aggregation in biopharmaceutical formulation with stimulated Raman'. HTML interstitial, no PDF access.",
+    "date": "2026-06-24"
+  },
+  "10.1117/12.2621455": {
+    "reason": "Publisher 'spie' blacklisted in adapter (hardcoded _PUBLISHER_BLACKLIST). SPIE conference proceeding - 'Label-free classification of T-cell differentiation via deep learning of hyperspectral...'. Documented in tracking-architecture.md as hard paywall: BU has no subscription, CDP via Edge returns Access denied. Adapter recognized publisher; not an unknown-publisher case.",
+    "date": "2026-06-24"
+  },
+  "10.1016/b978-0-323-85158-9.00035-x": {
+    "reason": "Elsevier book chapter - access denied / no subscription (linkinghub pii B978032385158900035X)",
+    "date": "2026-06-24"
+  },
+  "10.1117/12.2510732": {
+    "reason": "SPIE publisher blacklisted in engine.py (10.1117): paywall, HTML interstitial instead of PDF — lit attach cannot handle",
+    "date": "2026-06-24"
+  },
+  "10.1055/b-0041-180161": {
+    "reason": "Thieme ebook chapter (b- prefix, ebooks/lookinside URL) — not a standard journal article; building Thieme adapter for single book chapter not practical",
+    "date": "2026-06-24"
+  },
+  "10.1201/b12907-21": {
+    "reason": "CRC Press eBook chapter (10.1201/b-prefix book DOI, ch.21 of 'Coherent Raman Scattering Microscopy') on taylorfrancis.com books platform — no institutional access. CDP-confirmed via debug_taylorfrancis{,2,3}.py: page loads (HTTP 200) but login_visible=True, inst_access=False, no download/read button exists (only 'Request a trial' + abstract preview). taylorfrancis.com is the T&F eBooks platform, distinct from tandfonline.com (journals, covered by tandf adapter); institution does not subscribe to this eBook so no adapter can retrieve a PDF. Not an unknown-publisher adapter gap.",
+    "date": "2026-06-24"
+  }
+}

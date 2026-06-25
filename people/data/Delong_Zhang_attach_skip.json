@@ -1,0 +1,66 @@
+{
+  "10.1117/1.apn.5.1.016016": {
+    "reason": "spie publisher blacklisted in engine._PUBLISHER_BLACKLIST (10.1117/ - paywall, HTML interstitial instead of PDF, no institutional access)",
+    "date": "2026-06-24"
+  },
+  "10.1117/1.ap.7.3.036003": {
+    "reason": "SPIE publisher blacklisted in engine.py (paywall, HTML interstitial instead of PDF, no institutional access)",
+    "date": "2026-06-24"
+  },
+  "10.1117/12.3034797": {
+    "reason": "SPIE publisher blacklisted in engine.py (10.1117/ - paywall, HTML interstitial instead of PDF, no institutional access). SPIE proceedings paper.",
+    "date": "2026-06-24"
+  },
+  "10.1016/j.talanta.2023.125046": {
+    "reason": "Elsevier (Talanta) - Access denied / no subscription. Adapter navigated correctly to ScienceDirect/LinkingHub but no institutional access (3 attempts including subprocess fallback).",
+    "date": "2026-06-24"
+  },
+  "10.1021/cbmi.4c00055.s001": {
+    "reason": "supplementary material DOI (.s001 suffix), not main paper",
+    "date": "2026-06-24"
+  },
+  "10.1117/12.2646018": {
+    "reason": "SPIE publisher blacklisted in engine.py (10.1117/ - paywall, HTML interstitial instead of PDF, no institutional access). SPIE proceedings paper.",
+    "date": "2026-06-24"
+  },
+  "10.1117/12.2686651": {
+    "reason": "SPIE blacklisted by lit attach (no institutional access / paywall)",
+    "date": "2026-06-24"
+  },
+  "10.1117/12.2654298": {
+    "reason": "SPIE publisher blacklisted - paywall, HTML interstitial instead of PDF, no institutional access",
+    "date": "2026-06-24"
+  },
+  "10.1117/12.2642030": {
+    "reason": "SPIE publisher blacklisted in engine.py (10.1117/ - paywall, HTML interstitial instead of PDF, no institutional access). SPIE proceedings paper.",
+    "date": "2026-06-24"
+  },
+  "10.1016/b978-0-323-85158-9.00002-6": {
+    "reason": "Elsevier book chapter (B978 ISBN 978-0-323-85158-9) - access denied / no subscription, book chapters typically paywalled",
+    "date": "2026-06-24"
+  },
+  "10.1117/12.2583394": {
+    "reason": "SPIE publisher blacklisted (no institutional access / paywall) via lit attach",
+    "date": "2026-06-24"
+  },
+  "10.1117/12.2575404": {
+    "reason": "SPIE publisher blacklisted in engine.py (10.1117/ - paywall, HTML interstitial instead of PDF, no institutional access). SPIE proceedings paper.",
+    "date": "2026-06-24"
+  },
+  "10.1117/12.2547179": {
+    "reason": "SPIE publisher blacklisted in engine.py (10.1117/ - paywall, HTML interstitial instead of PDF, no institutional access). SPIE proceedings paper (Photonics West 2022).",
+    "date": "2026-06-24"
+  },
+  "10.1117/12.2575306": {
+    "reason": "SPIE conference proceedings — publisher blacklisted (no institutional access / paywall)",
+    "date": "2026-06-24"
+  },
+  "10.1117/1.ap.2.6.065002": {
+    "reason": "SPIE/Advanced Photonics - Imperva Incapsula + Distil anti-bot blocks automated access. Verified gold-OA via Unpaywall (direct .pdf URL exists) but spiedigitallibrary.org serves Incapsula challenge iframe (/_Incapsula_Resource) to both bare requests and CDP Edge browser; OA PDF undeliverable via lit attach.",
+    "date": "2026-06-24"
+  },
+  "10.1016/B978-0-323-85158-9.00032-4": {
+    "reason": "Elsevier book chapter (B978 ISBN 978-0-323-85158-9, ch.00032-4) 'Stimulated raman voltage imaging...' - access denied / no subscription. Adapter navigated correctly to ScienceDirect/LinkingHub but no institutional access (3 attempts incl. subprocess fallback). Same book as previously-skipped ch.00002-6; book chapters typically paywalled.",
+    "date": "2026-06-24"
+  }
+}

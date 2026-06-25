@@ -85,8 +85,20 @@ PDF 下载是两个独立命令，agent 按需编排：
 | **"更新 digest"** | 读已有 digest.md → diff Zotero 找新论文 → 逐篇深读 → 手术式更新（详见 `references/digest-workflow.md`） |
 | **"精读这篇论文"** | `lit parse <pdf>` → 深读全文 → paper digest（详见 `references/paper-digest-workflow.md`） |
 | 图片 OCR 导入 | `lit import <image_path>` → `lit quick <DOI>` → `lit attach <DOI>` |
+| **"读读吸收一下"** | 加入 Zotero → **提炼可执行改进**（见下方原则），不是输出思想总结 |
 
 ## 下载编排（Agent 责任）
+
+### 内容吸收 ≠ 思想总结
+
+当用户分享文章/综述让你"读一读、吸收一下"时，**不要只输出思想总结和要点概括**。用户自己会读原文——他需要的是 agent 从外部视角提炼的增量价值：
+
+1. **从"这能怎么改进我们现有的工具和流程"角度提炼可执行操作**
+2. 每条建议必须具体到：改哪个文件的哪个部分、新增什么字段/规则/步骤
+3. 区分"值得现在动手"和"记到 draft 以后看"
+4. 用户筛选后，agent 立即执行获批的改动（增量 append，保持原有信息）
+
+教训（2026-06-25）：AI4Research 综述分享后，agent 先输出了纯思想总结（六层架构、核心论点），被用户纠正"别光总结思想，想一想可以提炼出哪些可执行操作的"。
 
 三个命令各做一件事，agent 按场景编排：
 
@@ -208,3 +220,32 @@ PYTHONIOENCODING=utf-8 python "pdf_parser.py" "path"    # 解析
 | `references/webdav-setup.md` | WebDAV 配置说明 |
 | `references/mineru-api.md` | MinerU PDF 解析 API 说明 |
 | `references/tracking-architecture.md` | S2+CrossRef 论文追踪系统：discover-s2, track, build-affiliations, 置信度分层, affiliation 覆盖率 |
+| `references/s2-discovery.md` | DOI 反查法发现 S2 profile（含 Unicode 连字符归一化） |
+| `references/s2-batch-registration.md` | S2 DOI → CrossRef 元数据 → Zotero 批量注册 |
+| `references/scihub-mirrors.md` | Sci-Hub 多镜像轮转 + captcha 熔断 + 4 方法下载链 |
+| `references/local-sqlite-lookup.md` | 本地 SQLite DOI 查找（避免 API 延迟） |
+| `references/import-architecture.md` | import 管线：CrossRef → Zotero item 创建 |
+| `references/doi-index.md` | DOI 索引缓存机制 |
+| `references/storage-file-gap.md` | 存储路径解析 + PDF 缺口检测 |
+| `references/oa-sources.md` | 开放获取 PDF 源列表 |
+| `references/zotero-batch-optimization.md` | Zotero 批量操作优化 |
+| `references/zotero-storage-audit.md` | Zotero 存储空间审计 |
+| `references/merge-notes.md` | Scholar 合并/去重笔记 |
+
+## 开发模式
+
+**单目录开发**（2026-06-25 起）：此 skill 目录（prod skill dir）**就是**唯一工作目录。remote `origin` → GitHub。
+
+```bash
+# 改完代码/文档后：
+cd <this-skill-dir>
+git add -A && git commit -m "描述" && git push origin main
+```
+
+不需要 dev/prod sync。GitHub 做备份。旧 dev repo (`OneDrive/Hermes_workspace/Literature_skill`) 已废弃归档。
+
+### skill_manage 使用注意
+
+`skill_manage` 写入的文件（SKILL.md patches、references/ 新文档）直接落在此目录。**改完后记得 `git add && commit && push`**，否则是 untracked 文件，`git clean -fd` 会删。
+
+历史教训：18 个 reference 文档曾同时只存在于 untracked，因为之前的 session 用 skill_manage 写 prod 但从不 commit。单目录模式后不再有此问题——只要记得 commit。
