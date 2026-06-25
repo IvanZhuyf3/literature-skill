@@ -1,6 +1,6 @@
-# Literature Skill — 开发环境入口
+# Literature Skill
 
-> 本文件供 OpenCode / Claude Code / 人工开发时使用。打包为 skill 后，agent 读 `SKILL.md` 入口。
+> 单目录开发：直接在此目录（prod skill dir）编辑代码 + `git add && git commit && git push origin main`。GitHub 做备份。不需要 dev/prod sync。
 
 ## 文档导航
 
