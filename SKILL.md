@@ -39,7 +39,9 @@ python -m lit digest <collection>     # 首次生成消化模板（全量）
 python -m lit parse <pdf> [--item-key <key>]  # MinerU 解析 PDF → Markdown
 python -m lit maintain [--collection X] [--fix]  # 文件库健康检查
 python -m lit qr <DOI>               # 生成 QR 码
-python -m lit track <author> [--download]  # 检测作者新论文
+python -m lit discover-s2 <author> [--save|--download]  # S2 profile 发现 + 全量审计
+python -m lit track <author> [--download]  # 检测作者新论文（增量）
+python -m lit build-affiliations <author> [--save] [--sample N]  # 构建年度 affiliation 数据库
 ```
 
 旧版入口（`people.py`, `zot.py`, `main.py`）已弃用，代码保留兼容。
@@ -79,6 +81,7 @@ PDF 下载是两个独立命令，agent 按需编排：
 | "只加进 Zotero" | `lit import <DOI>` |
 | "帮我填满这个库的 PDF" | `lit quick <collection>` → `lit attach <collection>` |
 | 收集某学者所有论文 | `lit scholar <URL>` → 清洗 → `lit quick` → `lit attach` → `lit digest` |
+| **追踪新论文** | `lit discover-s2 <author> --save` → `lit track <author>` → `lit build-affiliations <author> --save` → **汇报轨迹 + 主动索要 bio page 手动补缺**（详见 `references/tracking-architecture.md`） |
 | **"更新 digest"** | 读已有 digest.md → diff Zotero 找新论文 → 逐篇深读 → 手术式更新（详见 `references/digest-workflow.md`） |
 | **"精读这篇论文"** | `lit parse <pdf>` → 深读全文 → paper digest（详见 `references/paper-digest-workflow.md`） |
 | 图片 OCR 导入 | `lit import <image_path>` → `lit quick <DOI>` → `lit attach <DOI>` |
@@ -204,3 +207,4 @@ PYTHONIOENCODING=utf-8 python "pdf_parser.py" "path"    # 解析
 | `references/paper-digest-workflow.md` | Paper digest 单篇精读工作流 |
 | `references/webdav-setup.md` | WebDAV 配置说明 |
 | `references/mineru-api.md` | MinerU PDF 解析 API 说明 |
+| `references/tracking-architecture.md` | S2+CrossRef 论文追踪系统：discover-s2, track, build-affiliations, 置信度分层, affiliation 覆盖率 |
