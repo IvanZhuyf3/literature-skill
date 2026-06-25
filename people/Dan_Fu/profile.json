@@ -24,23 +24,68 @@
     "2061347559": 4
   },
   "known_affiliations": [
+    "Peking University",
+    "Princeton University",
+    "Massachusetts Institute of Technology",
     "Harvard University",
     "University of Washington"
   ],
   "affiliation_history": {
+    "2003": [
+      "Peking University"
+    ],
+    "2005": [
+      "Princeton University"
+    ],
+    "2006": [
+      "Princeton University"
+    ],
+    "2007": [
+      "Princeton University"
+    ],
+    "2008": [
+      "Princeton University"
+    ],
+    "2009": [
+      "Princeton University",
+      "Massachusetts Institute of Technology"
+    ],
+    "2010": [
+      "Massachusetts Institute of Technology",
+      "Harvard University"
+    ],
+    "2011": [
+      "Harvard University"
+    ],
+    "2012": [
+      "Harvard University"
+    ],
+    "2013": [
+      "Harvard University"
+    ],
     "2014": [
       "Harvard University"
     ],
     "2015": [
-      "Harvard University"
+      "Harvard University",
+      "University of Washington"
     ],
     "2016": [
-      "Harvard University"
+      "University of Washington"
+    ],
+    "2017": [
+      "University of Washington"
+    ],
+    "2018": [
+      "University of Washington"
     ],
     "2019": [
       "University of Washington"
     ],
     "2020": [
+      "University of Washington"
+    ],
+    "2021": [
       "University of Washington"
     ],
     "2022": [
@@ -53,6 +98,9 @@
       "University of Washington"
     ],
     "2025": [
+      "University of Washington"
+    ],
+    "2026": [
       "University of Washington"
     ]
   }
