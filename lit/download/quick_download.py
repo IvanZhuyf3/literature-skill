@@ -24,9 +24,11 @@ from pathlib import Path
 from rich.console import Console
 
 from lit.download.crossref_tdm import try_crossref_tdm
-from lit.download.scihub_cdp import try_scihub
 from lit.download.unpaywall import try_unpaywall
 from lit.download.preprint import try_preprint
+
+# Sci-Hub temporarily disabled — mirrors getting CAPTCHA'd, letting IP cool down
+# from lit.download.scihub_cdp import try_scihub
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -39,7 +41,7 @@ _METHODS: list[tuple[str, callable]] = [
     ("Crossref TDM", try_crossref_tdm),
     ("Preprint", try_preprint),
     ("Unpaywall", try_unpaywall),
-    ("Sci-Hub (CDP)", try_scihub),
+    # ("Sci-Hub (CDP)", try_scihub),  # paused: CAPTCHA blacklist, IP cooldown
 ]
 
 
