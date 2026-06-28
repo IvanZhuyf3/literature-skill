@@ -11,56 +11,32 @@
   "scholar_url": "https://scholar.google.com/citations?user=p1ZT660AAAAJ&hl=en",
   "zotero_collection": "Ping Wang",
   "created": "2026-06-25",
-  "s2_paper_count": 57,
-  "s2_last_check": "",
-  "crossref_last_check": "",
+  "s2_paper_count": 27,
+  "s2_last_check": "2026-06-28",
+  "crossref_last_check": "2026-06-28",
   "s2_paper_counts": {
-    "2152209297": null,
+    "2152209297": 20,
     "2152207049": 27
   },
   "affiliation_history": {
-    "2002": [
-      "Wuhan University"
-    ],
-    "2003": [
-      "Chinese Academy of Sciences"
-    ],
-    "2004": [
-      "Chinese Academy of Sciences"
-    ],
-    "2005": [
-      "Chinese Academy of Sciences"
-    ],
-    "2006": [
-      "Chinese Academy of Sciences"
-    ],
-    "2007": [
-      "Chinese Academy of Sciences"
-    ],
     "2008": [
-      "Purdue University"
-    ],
-    "2009": [
-      "Purdue University"
-    ],
-    "2010": [
-      "Purdue University"
+      "Chinese Academy of Sciences",
+      "Wuhan Institute of Physics and Mathematics"
     ],
     "2011": [
-      "Purdue University"
+      "Purdue University West Lafayette"
     ],
     "2012": [
-      "Purdue University"
+      "Purdue University West Lafayette"
     ],
     "2013": [
-      "Purdue University"
+      "Purdue University West Lafayette"
     ],
     "2014": [
-      "Purdue University"
+      "Purdue University West Lafayette"
     ],
     "2015": [
-      "Purdue University",
-      "Huazhong University of Science and Technology"
+      "Purdue University West Lafayette"
     ],
     "2016": [
       "Huazhong University of Science and Technology"
@@ -69,39 +45,42 @@
       "Huazhong University of Science and Technology"
     ],
     "2018": [
+      "Wuhan National Laboratory for Optoelectronics",
       "Huazhong University of Science and Technology"
     ],
     "2019": [
       "Huazhong University of Science and Technology"
     ],
     "2020": [
+      "Wuhan National Laboratory for Optoelectronics",
       "Huazhong University of Science and Technology"
     ],
     "2021": [
-      "Huazhong University of Science and Technology"
+      "Huazhong University of Science and Technology",
+      "Wuhan National Laboratory for Optoelectronics"
     ],
     "2022": [
-      "Huazhong University of Science and Technology"
-    ],
-    "2023": [
       "Huazhong University of Science and Technology",
-      "Changping Laboratory"
+      "Wuhan National Laboratory for Optoelectronics"
     ],
     "2024": [
-      "Changping Laboratory"
+      "Wuhan National Laboratory for Optoelectronics",
+      "Huazhong University of Science and Technology"
     ],
     "2025": [
-      "Changping Laboratory"
-    ],
-    "2026": [
-      "Changping Laboratory"
+      "Cheung Kong Graduate School of Business",
+      "Wuhan National Laboratory for Optoelectronics",
+      "Huaiyin Institute of Technology",
+      "Huazhong University of Science and Technology"
     ]
   },
   "known_affiliations": [
-    "Wuhan University",
+    "Cheung Kong Graduate School of Business",
     "Chinese Academy of Sciences",
-    "Purdue University",
-    "Huazhong University",
-    "Changping Laboratory"
+    "Huaiyin Institute of Technology",
+    "Huazhong University of Science and Technology",
+    "Purdue University West Lafayette",
+    "Wuhan Institute of Physics and Mathematics",
+    "Wuhan National Laboratory for Optoelectronics"
   ]
 }

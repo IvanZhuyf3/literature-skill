@@ -16,38 +16,145 @@
   "created": "2026-06-20",
   "s2_paper_counts": {
     "5134552": 480,
-    "2255607104": 10,
     "2245698259": 28,
+    "2255607104": 10,
     "2237874549": 16
   },
   "s2_paper_count": 480,
-  "s2_last_check": "2026-06-25",
-  "crossref_last_check": "2026-06-25",
+  "s2_last_check": "2026-06-28",
+  "crossref_last_check": "2026-06-28",
   "known_affiliations": [
-    "Aix Marseille University",
+    "Aix-Marseille Université",
+    "Centrale Marseille",
+    "Centre National de la Recherche Scientifique",
+    "Centre National pour la Recherche Scientifique et Technique (CNRST)",
+    "Centre de Gestion Scientifique",
     "Institut Fresnel"
   ],
   "affiliation_history": {
     "1995": [
-      "Aix Marseille University"
+      "Centre National de la Recherche Scientifique",
+      "Centre de Gestion Scientifique",
+      "Centre National pour la Recherche Scientifique et Technique (CNRST)"
+    ],
+    "1997": [
+      "Centre National de la Recherche Scientifique"
+    ],
+    "1998": [
+      "Centre National de la Recherche Scientifique"
+    ],
+    "1999": [
+      "Centre National de la Recherche Scientifique"
     ],
     "2000": [
-      "Aix Marseille University"
+      "Institut Fresnel"
+    ],
+    "2001": [
+      "Institut Fresnel"
+    ],
+    "2002": [
+      "Centre National de la Recherche Scientifique",
+      "Institut Fresnel"
+    ],
+    "2003": [
+      "Institut Fresnel"
+    ],
+    "2004": [
+      "Institut Fresnel"
     ],
     "2005": [
-      "Aix Marseille University"
+      "Institut Fresnel",
+      "Centre National de la Recherche Scientifique"
+    ],
+    "2007": [
+      "Centre National de la Recherche Scientifique",
+      "Institut Fresnel"
+    ],
+    "2008": [
+      "Centre National de la Recherche Scientifique",
+      "Institut Fresnel"
+    ],
+    "2009": [
+      "Centre National de la Recherche Scientifique",
+      "Aix-Marseille Université",
+      "Institut Fresnel",
+      "Centrale Marseille"
     ],
     "2010": [
-      "Aix Marseille University"
+      "Centre National de la Recherche Scientifique",
+      "Aix-Marseille Université",
+      "Institut Fresnel",
+      "Centrale Marseille"
+    ],
+    "2011": [
+      "Institut Fresnel"
+    ],
+    "2012": [
+      "Institut Fresnel",
+      "Centre National de la Recherche Scientifique",
+      "Aix-Marseille Université",
+      "Centrale Marseille"
+    ],
+    "2013": [
+      "Centre National de la Recherche Scientifique",
+      "Aix-Marseille Université",
+      "Institut Fresnel",
+      "Centrale Marseille"
+    ],
+    "2014": [
+      "Aix-Marseille Université",
+      "Institut Fresnel",
+      "Centrale Marseille",
+      "Centre National de la Recherche Scientifique"
     ],
     "2015": [
-      "Aix Marseille University"
+      "Centre National de la Recherche Scientifique",
+      "Institut Fresnel",
+      "Centrale Marseille",
+      "Aix-Marseille Université"
+    ],
+    "2016": [
+      "Centre National de la Recherche Scientifique",
+      "Aix-Marseille Université",
+      "Institut Fresnel",
+      "Centrale Marseille"
+    ],
+    "2017": [
+      "Aix-Marseille Université"
+    ],
+    "2018": [
+      "Institut Fresnel",
+      "Centre National de la Recherche Scientifique",
+      "Centrale Marseille"
+    ],
+    "2019": [
+      "Centre National de la Recherche Scientifique",
+      "Institut Fresnel",
+      "Centrale Marseille"
     ],
     "2020": [
-      "Aix Marseille University"
+      "Institut Fresnel"
     ],
-    "2025": [
-      "Aix Marseille University"
+    "2021": [
+      "Institut Fresnel",
+      "Centre National de la Recherche Scientifique",
+      "Centrale Marseille"
+    ],
+    "2022": [
+      "Institut Fresnel"
+    ],
+    "2023": [
+      "Centre National de la Recherche Scientifique",
+      "Institut Fresnel",
+      "Centrale Marseille",
+      "Aix-Marseille Université"
+    ],
+    "2024": [
+      "Institut Fresnel",
+      "Centrale Marseille"
+    ],
+    "2026": [
+      "Institut Fresnel"
     ]
   }
 }

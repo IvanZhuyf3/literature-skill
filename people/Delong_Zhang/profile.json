@@ -18,41 +18,66 @@
   "zotero_collection": "Delong Zhang",
   "created": "2026-06-25",
   "s2_paper_count": 50,
-  "s2_last_check": "2026-06-25",
-  "crossref_last_check": "2026-06-25",
+  "s2_last_check": "2026-06-28",
+  "crossref_last_check": "2026-06-28",
   "s2_paper_counts": {
-    "2237596169": 31,
     "145637490": 50,
+    "2237596169": 31,
     "2406832568": 5,
     "49356885": 12,
-    "2291412875": 6,
-    "2174929395": 4
+    "2174929395": 4,
+    "2291412875": 6
   },
   "known_affiliations": [
-    "Purdue University",
+    "Boston University",
+    "Purdue University West Lafayette",
+    "Zhejiang Lab",
     "Zhejiang University"
   ],
   "affiliation_history": {
     "2011": [
-      "Purdue University"
+      "Purdue University West Lafayette"
+    ],
+    "2012": [
+      "Purdue University West Lafayette"
+    ],
+    "2013": [
+      "Purdue University West Lafayette"
     ],
     "2014": [
-      "Purdue University"
+      "Purdue University West Lafayette"
     ],
     "2015": [
-      "Purdue University"
+      "Purdue University West Lafayette"
     ],
     "2018": [
-      "Purdue University"
+      "Purdue University West Lafayette"
+    ],
+    "2019": [
+      "Boston University"
+    ],
+    "2020": [
+      "Zhejiang University"
+    ],
+    "2021": [
+      "Zhejiang University"
     ],
     "2022": [
       "Zhejiang University"
     ],
+    "2023": [
+      "Zhejiang University"
+    ],
+    "2024": [
+      "Zhejiang Lab",
+      "Zhejiang University"
+    ],
     "2025": [
+      "Zhejiang Lab",
       "Zhejiang University"
     ],
     "2026": [
-      "Zhejiang University"
+      "Zhejiang Lab"
     ]
   }
 }

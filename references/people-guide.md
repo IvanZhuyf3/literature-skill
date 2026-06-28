@@ -71,6 +71,18 @@ lit digest "学者名"
 
 Scholar 抓取的数据很脏（截断作者名、专利/会议混入、preprint/正式版重复），直接一把全自动会导致 Zotero 里大量需要事后清理的条目。人机合作流程把**清洗**放在中间，agent 只负责机械重复的工作（注册 + 下载 PDF）。
 
+## `lit scholar` 执行时间
+
+`lit scholar` 一条命令跑完 Phase 1+2（抓取 + CrossRef DOI 匹配 + Zotero 注册），**不分步**。
+
+| 论文数 | CrossRef 匹配耗时 | 说明 |
+|--------|------------------|------|
+| ≤50 篇 | 2-3 min | 前台运行 OK |
+| 50-150 篇 | 5-10 min | 前台 timeout=300 可能够，保险起见后台 |
+| 150+ 篇 | 15-25 min | **必须后台运行**（`background=true, notify_on_complete=true`） |
+
+CrossRef API 逐篇查询（含 polite pool 节流），速度 ~10 篇/min。200+ 篇的学者（如 Garth Simpson 274 篇 → ~25min）前台 300s 必然超时。**第一次就放后台**，别浪费一轮 300s timeout。
+
 ## 批量下载策略
 
 默认关闭（`lit scholar` 不含下载）。建议 cron 线性下载（10-15min/篇），用 `lit attach` 做断点续传（从 Zotero 读状态）。一次性大量下载会触发出版商 access 封禁。
@@ -118,7 +130,10 @@ Scholar 抓取的数据很脏（截断作者名、专利/会议混入、preprint
 | 论文抓取后数量不对 | `CONFERENCE_KEYWORDS` 漏了该会议 | 在 `lit/discover/scholar.py` 的 `CONFERENCE_KEYWORDS` 列表追加 |
 | `config.yaml` 路径不匹配 | gitclone 后路径中的用户名不同 | 手动修正 `temp_dir` 和 `storage_path` |
 | CDP 连接失败 | Edge 未启动或端口不对 | 先手动启动 Edge（`--remote-debugging-port=19222`）|
+| CDP 端口连不上但 msedge.exe 在运行 | Edge 已有实例占用了 user-data-dir，新进程不继承 debug 端口 | `taskkill /F /IM msedge.exe` 全杀 → 删 `SingletonLock`/`SingletonSocket`/`SingletonCookie`（User Data 目录下）→ 重启 Edge 带 `--remote-debugging-port=19222` → `curl http://127.0.0.1:19222/json/version` 验证 |
 | 批量下载永远跑不完（进程挂起） | `subprocess.run()` 无 timeout | 已在 `lit/download/engine.py` 加 `timeout=120` |
 | PDF 下载失败率高 | 部分出版商无适配器或页面结构变化 | 查看 `references/architecture.md` 的「已知限制」|
 | 附件在另一台电脑上显示空壳 | `imported_file` 路径是绝对路径，不跨机器 | 查看 `references/storage-file-gap.md` |
 | 批量下载有失败项 | 部分出版商超时或无订阅 | 重跑 `lit attach` 会自动处理失败的篇 |
+| 验证 Zotero 条目数远少于预期 | `collection_items(key)` 默认只返回 **100 条**（pyzotero 分页限制） | 分页查询：循环 `collection_items(key, limit=100, start=0/100/200...)` 直到返回 <100 条 |
+| `lit scholar` 超时中断后不敢重跑 | 担心重复注册 | **安全重跑**：`lit scholar` 基于 DOI 去重，重跑时已注册的篇标记 `Already exists` 自动跳过，不会产生重复条目 |

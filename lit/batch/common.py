@@ -7,19 +7,83 @@ lit/batch/common.py — quick 和 attach 共享的批量逻辑。
   3. 逐篇下载 → 挂载
 
 唯一区别是下载方法。本模块抽出 1 和 2，以及批量循环框架。
+
+停止机制：
+  - `lit stop` 命令读取 .batch.pid，发送 SIGTERM 杀进程树
+  - batch_download() 注册信号处理器，收到信号后在当前论文完成后退出
+  - PID 文件在 batch_download() 进入和退出时自动维护
 """
 
 from __future__ import annotations
 
+import os
+import signal
 import sys
+from pathlib import Path
 from typing import Callable
 
 from rich.console import Console
 
 from lit.core import zotero as zot
 from lit.core.config import load as load_config
+from lit.core.config import skill_base
 
 console = Console()
+
+# ── 停止信号 ──────────────────────────────────────────────────────────
+_stop_requested = False
+_pid_file = skill_base() / ".batch.pid"
+_stop_file = skill_base() / ".batch.stop"  # sentinel: lit stop creates this
+
+
+def _check_stop_file() -> bool:
+    """检查是否存在停止 sentinel 文件（lit stop 创建）。"""
+    return _stop_file.exists()
+
+
+def _clear_stop_file():
+    """清除停止 sentinel 文件。"""
+    try:
+        _stop_file.unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
+def _signal_handler(signum, frame):
+    """SIGINT handler — Ctrl+C 在终端里有效。"""
+    global _stop_requested
+    _stop_requested = True
+    console.print(
+        f"\n  [yellow bold]⚠ Stop requested"
+        f" ({signal.Signals(signum).name}) — finishing current paper, then exiting.[/yellow bold]"
+    )
+
+
+def _write_pid():
+    """写入当前进程 PID 到 .batch.pid，供 `lit stop` 使用。"""
+    _pid_file.write_text(str(os.getpid()), encoding="utf-8")
+
+
+def _clear_pid():
+    """清除 PID 文件。"""
+    try:
+        _pid_file.unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
+def is_batch_running() -> bool:
+    """检查是否有批量任务正在运行（PID 文件存在且进程活着）。"""
+    if not _pid_file.exists():
+        return False
+    try:
+        pid = int(_pid_file.read_text(encoding="utf-8").strip())
+        os.kill(pid, 0)  # signal 0 = check if process exists
+        return True
+    except (ProcessLookupError, ValueError, OSError):
+        # Process dead or invalid PID — clean up stale file
+        _clear_pid()
+        return False
 
 
 def collect_missing(
@@ -112,50 +176,75 @@ def batch_download(
     label: str,
     limit: int | None = None,
 ) -> dict:
-    """批量下载循环。download_fn(doi) → Path | None。"""
+    """批量下载循环。download_fn(doi) → Path | None。
+
+    支持优雅停止：收到 SIGINT/SIGTERM 后在当前论文完成后退出。
+    """
+
+    global _stop_requested
+
+    # ── 注册信号处理器 + 写 PID + 清除旧 stop sentinel ──
+    _stop_requested = False
+    _clear_stop_file()
+    _write_pid()
+    signal.signal(signal.SIGINT, _signal_handler)
 
     stats["attached"] = 0
     stats["failed"] = 0
 
-    for i, paper in enumerate(papers):
-        if limit is not None and i >= limit:
-            console.print(
-                f"\n  [yellow]Reached limit ({limit}), stopping.[/yellow]"
-            )
-            break
+    try:
+        for i, paper in enumerate(papers):
+            # ── 检查停止信号（sentinel file + signal flag）──
+            if _stop_requested or _check_stop_file():
+                console.print(
+                    f"\n  [yellow]Stopped at [{i + 1}/{stats['total']}]. "
+                    f"{len(papers) - i} papers remaining.[/yellow]"
+                )
+                break
 
-        console.print(f"\n  [{i + 1}/{stats['total']}] {paper['title']}")
-        doi = paper["doi"]
+            if limit is not None and i >= limit:
+                console.print(
+                    f"\n  [yellow]Reached limit ({limit}), stopping.[/yellow]"
+                )
+                break
 
-        # ── Re-check: PDF may have been added since collect_missing ──
-        if zot.resolve_local_pdf(doi):
-            stats["already_have"] = stats.get("already_have", 0) + 1
-            console.print(f"    [dim]⊘ Already has PDF (skipped)[/dim]")
-            continue
+            console.print(f"\n  [{i + 1}/{stats['total']}] {paper['title']}")
+            doi = paper["doi"]
 
-        try:
-            console.print(f"    [dim]{label}: {doi} ...[/dim]")
-            pdf_path = download_fn(doi)
+            # ── Re-check: PDF may have been added since collect_missing ──
+            if zot.resolve_local_pdf(doi):
+                stats["already_have"] = stats.get("already_have", 0) + 1
+                console.print(f"    [dim]⊘ Already has PDF (skipped)[/dim]")
+                continue
 
-            if pdf_path:
-                att_key = zot.attach_pdf(paper["key"], pdf_path)
-                if att_key:
-                    stats["attached"] += 1
-                    console.print(f"    [green]✓ Attached: {att_key}[/green]")
+            try:
+                console.print(f"    [dim]{label}: {doi} ...[/dim]")
+                pdf_path = download_fn(doi)
+
+                if pdf_path:
+                    att_key = zot.attach_pdf(paper["key"], pdf_path)
+                    if att_key:
+                        stats["attached"] += 1
+                        console.print(f"    [green]✓ Attached: {att_key}[/green]")
+                    else:
+                        stats["failed"] += 1
+                        console.print(f"    [yellow]⚠ Downloaded but attach failed[/yellow]")
                 else:
                     stats["failed"] += 1
-                    console.print(f"    [yellow]⚠ Downloaded but attach failed[/yellow]")
-            else:
+                    console.print(f"    [dim]✗ {label}: no PDF[/dim]")
+
+            except Exception as e:
+                err = str(e)[:200]
                 stats["failed"] += 1
-                console.print(f"    [dim]✗ {label}: no PDF[/dim]")
+                console.print(f"    [red]✗ Failed: {err[:80]}[/red]")
 
-        except Exception as e:
-            err = str(e)[:200]
-            stats["failed"] += 1
-            console.print(f"    [red]✗ Failed: {err[:80]}[/red]")
+    finally:
+        _clear_pid()
+        _clear_stop_file()
 
+    stopped_note = " (stopped)" if (_stop_requested or _check_stop_file()) else ""
     console.print(
-        f"\n  [bold]Summary:[/bold] "
+        f"\n  [bold]Summary:{stopped_note}[/bold] "
         f"✓ {stats['attached']} attached, "
         f"✗ {stats['failed']} failed, "
         f"⊘ {stats['skipped_no_doi']} no DOI"

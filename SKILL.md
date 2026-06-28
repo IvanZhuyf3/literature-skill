@@ -20,8 +20,8 @@ python -m lit scholar <URL>           # 抓取 Scholar → 批量注册 Zotero
 python -m lit import <DOI/URL>        # 单篇注册 Zotero（DOI / URL / 图片 OCR）
 python -m lit import <image_path>     # 图片 OCR → 注册 Zotero
 
-# === 快速下载（Sci-Hub + OA 源，秒级，~50% 成功率）===
-python -m lit quick <DOI>             # 单篇：查缺口 → Sci-Hub 下载 → 挂载
+# === 快速下载（多源链：Crossref TDM → Unpaywall → Sci-Hub，秒级）===
+python -m lit quick <DOI>             # 单篇：查缺口 → 多源快下（TDM/Unpaywall/Sci-Hub）→ 挂载
 python -m lit quick <collection>      # 批量：遍历 collection 缺 PDF 的条目
 python -m lit quick <collection> --limit 5
 
@@ -52,7 +52,7 @@ PDF 下载是两个独立命令，agent 按需编排：
 
 | 层 | 命令 | 原理 | 速度 | 覆盖率 |
 |----|------|------|------|--------|
-| 快速通道 | `lit quick` | Sci-Hub CDP（利用已有 Edge 连接，5s 过 DDoS-Guard） | 秒级 | ~50%（≤2021） |
+| 快速通道 | `lit quick` | 多源链：Crossref TDM → Preprint → Unpaywall → Sci-Hub CDP（4 源逐个尝试） | 秒级~10s/篇 | 70-95%（取决于领域/年份；TDM 加入后远高于早期 ~50%） |
 | 兜底通道 | `lit attach` | 27 个出版商适配器，CDP 导航到出版商页面，机构登录态下载 | 分钟级 | 几乎全覆盖 |
 
 **两层都先检查本地是否已有 PDF**（`resolve_local_pdf`），已有则跳过。
@@ -82,6 +82,7 @@ PDF 下载是两个独立命令，agent 按需编排：
 | "帮我填满这个库的 PDF" | `lit quick <collection>` → `lit attach <collection>` |
 | 收集某学者所有论文 | `lit scholar <URL>` → 清洗 → `lit quick` → `lit attach` → `lit digest` |
 | **追踪新论文** | `lit discover-s2 <author> --save` → `lit track <author>` → `lit build-affiliations <author> --save` → **汇报轨迹 + 主动索要 bio page 手动补缺**（详见 `references/tracking-architecture.md`） |
+| **降噪清理 collection** | `debug/collection_audit.py`（OpenAlex 逐篇审计）→ `debug/remove_from_collections.py`（移除假阳性，item 留库）→ 用户在 Unfiled 复查 |
 | **"更新 digest"** | 读已有 digest.md → diff Zotero 找新论文 → 逐篇深读 → 手术式更新（详见 `references/digest-workflow.md`） |
 | **"精读这篇论文"** | `lit parse <pdf>` → 深读全文 → paper digest（详见 `references/paper-digest-workflow.md`） |
 | 图片 OCR 导入 | `lit import <image_path>` → `lit quick <DOI>` → `lit attach <DOI>` |
@@ -111,6 +112,8 @@ lit attach <DOI>     # 兜底（如果 quick 没拿到）
 ```
 
 Agent 默认连续执行 quick → attach。quick 成功则跳过 attach（attach 内部会检查已有 PDF）。
+
+**覆盖率实测**（2026-06-26 Garth Simpson, 170 篇缺口）：quick 单层拿到 160 篇（94%），attach 兜底再拿 8 篇，最终 168/170 = 98.8%。quick 的主要命中源是 Crossref TDM（许多 ACS/RSC论文有 TDM link），Sci-Hub CDP 作为末位兜底。领域为化学/物理非线性光学，年份 1995-2026。
 
 ### 批量填满（条目已在 Zotero，只差 PDF）
 
@@ -155,7 +158,7 @@ python -m lit scholar "SCHOLAR_URL"
 ### Phase 3：Agent — 补 PDF + 解析 + 消化
 
 ```bash
-python -m lit quick "学者名"              # 批量 Sci-Hub
+python -m lit quick "学者名"              # 批量快速下载（TDM/Unpaywall/Sci-Hub）
 python -m lit attach "学者名"             # 批量 publisher adapter 兜底
 python -m lit parse <pdf> --item-key <key>  # 解析 PDF
 python -m lit digest "学者名"             # 生成消化报告
@@ -219,7 +222,8 @@ PYTHONIOENCODING=utf-8 python "pdf_parser.py" "path"    # 解析
 | `references/paper-digest-workflow.md` | Paper digest 单篇精读工作流 |
 | `references/webdav-setup.md` | WebDAV 配置说明 |
 | `references/mineru-api.md` | MinerU PDF 解析 API 说明 |
-| `references/tracking-architecture.md` | S2+CrossRef 论文追踪系统：discover-s2, track, build-affiliations, 置信度分层, affiliation 覆盖率 |
+| `references/tracking-architecture.md` | S2+CrossRef+OpenAlex 论文追踪系统：discover-s2, track, build-affiliations (OpenAlex), 置信度分层, collection 审计与降噪, Zotero 重合率验证 |
+| `references/openalex-exploration.md` | OpenAlex vs S2 API 对比 + PoC（作者级 institution 数据，潜在第三数据源） |
 | `references/s2-discovery.md` | DOI 反查法发现 S2 profile（含 Unicode 连字符归一化） |
 | `references/s2-batch-registration.md` | S2 DOI → CrossRef 元数据 → Zotero 批量注册 |
 | `references/scihub-mirrors.md` | Sci-Hub 多镜像轮转 + captcha 熔断 + 4 方法下载链 |

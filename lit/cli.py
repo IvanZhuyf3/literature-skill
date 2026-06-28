@@ -23,6 +23,8 @@ lit/cli.py — 单一 CLI 入口。
 from __future__ import annotations
 
 import sys
+import os
+import signal
 import argparse
 from pathlib import Path
 
@@ -108,6 +110,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("author", help="people/ 下的作者目录名 (如 Ji-Xin_Cheng)")
     p.add_argument("--save", action="store_true", help="将发现的 ID 写入 profile.json")
     p.add_argument("--download", action="store_true", help="注册新论文到 Zotero 并下载 PDF (implies --save)")
+
+    # ── stop (停止批量任务) ──
+    p = sub.add_parser("stop", help="停止正在运行的批量下载（quick/attach）")
+    p.add_argument("--force", "-f", action="store_true", help="强制杀进程树（taskkill /F /T）")
 
     # ── build-affiliations ──
     p = sub.add_parser("build-affiliations", help="从 Zotero 论文自动构建年度 affiliation 数据库")
@@ -280,6 +286,39 @@ def main():
                             console.print(f"    [yellow]⚠ download failed[/yellow]")
 
                 console.print(f"\n[bold green]Done: {ok}/{len(new_papers)} downloaded[/bold green]")
+
+    elif args.command == "stop":
+        from lit.batch.common import _pid_file, _stop_file, _clear_pid, _clear_stop_file
+        import subprocess as _sp
+
+        if not _pid_file.exists():
+            console.print("[yellow]No batch PID file found — nothing to stop.[/yellow]")
+            return
+
+        try:
+            pid = int(_pid_file.read_text(encoding="utf-8").strip())
+        except ValueError:
+            console.print("[red]Invalid PID file.[/red]")
+            _clear_pid()
+            return
+
+        console.print(f"  Stopping batch process (PID {pid})...")
+
+        if args.force:
+            # Force kill entire process tree (Windows: taskkill /F /T)
+            _sp.run(["taskkill", "/F", "/T", "/PID", str(pid)],
+                    capture_output=True)
+            _clear_pid()
+            _clear_stop_file()
+            console.print(f"  [red]Force killed PID {pid} and all children.[/red]")
+        else:
+            # Graceful: create sentinel file, batch loop will detect and stop
+            _stop_file.write_text("stop", encoding="utf-8")
+            console.print(
+                f"  [green]✓ Stop signal sent (sentinel file).[/green]\n"
+                f"  [dim]Process will stop after current paper finishes.[/dim]\n"
+                f"  [dim]Use `lit stop --force` if it doesn't stop within a minute.[/dim]"
+            )
 
     elif args.command == "build-affiliations":
         from lit.discover.tracker import build_affiliations

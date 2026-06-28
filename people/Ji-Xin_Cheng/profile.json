@@ -8,8 +8,8 @@
   "s2_author_id": "144507368",
   "scholar_url": "https://scholar.google.com/citations?user=M7fTV28AAAAJ",
   "zotero_collection": "Ji-Xin Cheng",
-  "crossref_last_check": "2026-06-25",
-  "s2_last_check": "2026-06-25",
+  "crossref_last_check": "2026-06-28",
+  "s2_last_check": "2026-06-28",
   "created": "2026-06-18",
   "s2_ids": [
     "144507368",
@@ -60,25 +60,82 @@
   "known_affiliations": [
     "Boston University",
     "Harvard University",
-    "Purdue University"
+    "Hong Kong University of Science and Technology",
+    "Purdue University West Lafayette",
+    "University of Massachusetts Boston",
+    "University of Science and Technology of China"
   ],
   "affiliation_history": {
+    "1995": [
+      "University of Science and Technology of China"
+    ],
+    "1998": [
+      "University of Science and Technology of China"
+    ],
+    "1999": [
+      "University of Science and Technology of China"
+    ],
+    "2000": [
+      "Hong Kong University of Science and Technology"
+    ],
     "2002": [
+      "Harvard University"
+    ],
+    "2003": [
       "Harvard University"
     ],
     "2004": [
       "Harvard University"
     ],
     "2005": [
-      "Purdue University"
+      "Purdue University West Lafayette"
+    ],
+    "2006": [
+      "Purdue University West Lafayette"
+    ],
+    "2007": [
+      "Purdue University West Lafayette"
+    ],
+    "2008": [
+      "Purdue University West Lafayette"
+    ],
+    "2009": [
+      "Purdue University West Lafayette"
+    ],
+    "2010": [
+      "Purdue University West Lafayette"
+    ],
+    "2011": [
+      "Purdue University West Lafayette"
+    ],
+    "2012": [
+      "Purdue University West Lafayette"
+    ],
+    "2013": [
+      "Purdue University West Lafayette"
+    ],
+    "2014": [
+      "Purdue University West Lafayette"
     ],
     "2015": [
-      "Purdue University"
+      "Purdue University West Lafayette"
+    ],
+    "2016": [
+      "Purdue University West Lafayette"
     ],
     "2017": [
-      "Purdue University"
+      "Purdue University West Lafayette"
+    ],
+    "2018": [
+      "Boston University"
     ],
     "2019": [
+      "Boston University"
+    ],
+    "2020": [
+      "Boston University"
+    ],
+    "2021": [
       "Boston University"
     ],
     "2022": [
@@ -90,8 +147,9 @@
     "2024": [
       "Boston University"
     ],
-    "2026": [
-      "Boston University"
+    "2025": [
+      "Boston University",
+      "University of Massachusetts Boston"
     ]
   }
 }
