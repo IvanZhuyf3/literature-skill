@@ -114,9 +114,7 @@ _ADAPTERS: dict[str, type] = {
 
 # Publishers that should never be auto-downloaded (paywall, no institutional access, etc.)
 # Keys = publisher names as returned by detect_publisher()
-_PUBLISHER_BLACKLIST: set[str] = {
-    "spie",  # 10.1117/ — paywall, HTML interstitial instead of PDF
-}
+_PUBLISHER_BLACKLIST: set[str] = set()
 
 # ──────────────────────────────────────────────────────────────────
 # Helpers

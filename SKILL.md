@@ -20,8 +20,8 @@ python -m lit scholar <URL>           # 抓取 Scholar → 批量注册 Zotero
 python -m lit import <DOI/URL>        # 单篇注册 Zotero（DOI / URL / 图片 OCR）
 python -m lit import <image_path>     # 图片 OCR → 注册 Zotero
 
-# === 快速下载（多源链：Crossref TDM → Unpaywall → Sci-Hub，秒级）===
-python -m lit quick <DOI>             # 单篇：查缺口 → 多源快下（TDM/Unpaywall/Sci-Hub）→ 挂载
+# === 快速下载（多源链：Crossref TDM → Preprint → Unpaywall → Sci-Hub，秒级）===
+python -m lit quick <DOI>             # 单篇：查缺口 → 多源快下（TDM/Preprint/Unpaywall/Sci-Hub）→ 挂载
 python -m lit quick <collection>      # 批量：遍历 collection 缺 PDF 的条目
 python -m lit quick <collection> --limit 5
 
@@ -56,7 +56,7 @@ PDF 下载是两个独立命令，agent 按需编排：
 
 | 层 | 命令 | 原理 | 速度 | 覆盖率 |
 |----|------|------|------|--------|
-| 快速通道 | `lit quick` | 多源链：Crossref TDM → Preprint → Unpaywall → Sci-Hub CDP（4 源逐个尝试） | 秒级~10s/篇 | 70-95%（取决于领域/年份；TDM 加入后远高于早期 ~50%） || 兜底通道 | `lit attach` | 27 个出版商适配器，CDP 导航到出版商页面，机构登录态下载 | 分钟级 | 几乎全覆盖 |
+| 快速通道 | `lit quick` | 多源链：Crossref TDM → Preprint → Unpaywall → Sci-Hub native（4 源逐个尝试） | 秒级~10s/篇 | 70-95%（取决于领域/年份；TDM 加入后远高于早期 ~50%） || 兜底通道 | `lit attach` | 27 个出版商适配器，CDP 导航到出版商页面，机构登录态下载 | 分钟级 | 几乎全覆盖 |
 
 **两层都先检查本地是否已有 PDF**（`resolve_local_pdf`），已有则跳过。
 
@@ -74,6 +74,12 @@ PDF 下载是两个独立命令，agent 按需编排：
 - 下载失败时，先查 `<skill-base>/error_log.md` 该出版商的条目。深度调试读 `references/architecture.md`。
 - **OCR DOI 和 CrossRef 匹配都不可全信**。检查 `crossref_score`：<30 时匹配不可信。
 - **Sci-Hub CAPTCHA 熔断**：批量下载时 Sci-Hub 镜像可能连续 CAPTCHA 被拉黑（2/5 mirrors dead → 基本废了）。此时在 `lit/download/quick_download.py` 注释掉 `try_scihub` import 和 `_METHODS` 条目，等 IP 冷却（数小时~一天）后再恢复。quick 链即使没有 Sci-Hub 仍有 Crossref TDM + Unpaywall 两个有效源。
+- **`has_pdf_attachment()` 在 WebDAV 模式下不可靠**：imported_file 附件不走 Zotero API 的标准 attachment 标记，会误报所有论文缺 PDF。批量查缺口一律用 `resolve_local_pdf(doi)` 做文件系统级检查（`collect_missing()` 已用此方法）。手动检查缺口也用它。
+- **SPIE 在 `_PUBLISHER_BLACKLIST` 中**：`engine.py` 的 `_PUBLISHER_BLACKLIST` 包含 `"spie"`（标记为 paywall）。如需尝试 SPIE 下载，需临时移除黑名单条目。SPIE adapter 代码存在（`publisher/spie.py`），用 `citation_pdf_url` meta 标签定位 PDF。
+- **`_PUBLISHER_BLACKLIST` 静默跳过**：`engine.py` 有 `_PUBLISHER_BLACKLIST = {"spie"}`，被列入的出版商 adapter 根本不执行，输出只有 `✗ Publisher: no PDF`，没有错误日志。排查 "no PDF" 但 `error_log.md` 无条目时，第一时间查这个集合。SPIE（`10.1117/` 会议论文）是最常见的静默跳过源。要解除：注释掉黑名单条目 + 用 CDP recording 录一遍手动下载确认选择器。
+- **`has_pdf_attachment` 不可信**：WebDAV 本地存储模式下 `has_pdf_attachment()` 可能误报（ghost 附件）。`collect_missing()` 内部用 `resolve_local_pdf()` 做磁盘检查才是准确的。手动排查缺口也用 `resolve_local_pdf(doi)`。
+- **Sci-Hub 模块已迁移**：`scihub_cdp.py`（Playwright CDP + 多方法下载链）已废弃，现由 `scihub_native.py` 替代（page.goto 直连，无 fetch/JS 注入）。`_METHODS` 中函数名仍为 `try_scihub`。
+- **Publisher 黑名单**：`engine.py` 的 `_PUBLISHER_BLACKLIST` 含 `"spie"`（paywall HTML interstitial）。SPIE 论文（`10.1117/12.*` 会议论文）即使有 adapter 也不会执行下载。批量下载发现 SPIE 缺口时，需手动处理或临时移除黑名单条目测试。
 
 # 工作流程
 

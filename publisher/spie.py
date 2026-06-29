@@ -67,35 +67,46 @@ class SPIEAdapter(PublisherAdapter):
 
     def find_download_url(self, page) -> Optional[str]:
         """
-        从 citation_pdf_url meta 标签提取 PDF 直链。
+        构造 SPIE PDF 直链。
 
-        比按钮 href 更可靠（按钮指向 Download API，meta 直接指向 .pdf）。
+        citation_pdf_url meta 标签指向 HTML interstitial（返回 HTML 非 PDF）。
+        实际 PDF 下载端点是 /Proceedings/Download?urlId={DOI_URL_ENCODED}，
+        需带 Referer header（engine 的 cookie_download 会自动处理）。
+        来源：CDP recording 实测 2026-06-29。
         """
-        # 优先用 citation_pdf_url meta 标签
-        pdf_url = page.evaluate("""() => {
-            const el = document.querySelector('meta[name="citation_pdf_url"]');
-            return el ? el.content : null;
-        }""")
+        # Extract DOI from page meta or URL
+        doi = page.evaluate("""() => {
+            const el = document.querySelector('meta[name="citation_doi"]');
+            return el ? el.content : '';
+        }""") or ""
 
-        if pdf_url:
-            if not pdf_url.startswith(("http://", "https://")):
-                pdf_url = urljoin(page.url, pdf_url)
-            logger.info(f"SPIE PDF URL from citation_pdf_url: {pdf_url}")
-            return pdf_url
+        if not doi:
+            # Fallback: try citation_pdf_url (may be HTML interstitial)
+            pdf_url = page.evaluate("""() => {
+                const el = document.querySelector('meta[name="citation_pdf_url"]');
+                return el ? el.content : null;
+            }""")
+            if pdf_url:
+                if not pdf_url.startswith(("http://", "https://")):
+                    pdf_url = urljoin(page.url, pdf_url)
+                return pdf_url
+            return None
 
-        # Fallback: 从按钮提取
-        element = self.find_download_element(page)
-        if element:
-            href = element.get_attribute("href") or ""
-            if not href.startswith(("http://", "https://")):
-                href = urljoin(page.url, href)
-            return href
-
-        return None
+        # Build direct download URL from DOI
+        from urllib.parse import quote
+        pdf_url = f"https://www.spiedigitallibrary.org/Proceedings/Download?urlId={quote(doi, safe='')}"
+        logger.info(f"SPIE PDF URL (direct): {pdf_url}")
+        return pdf_url
 
     def check_access(self, page) -> bool:
-        """有 PDF 下载链接表示有权限。"""
-        # 检查 citation_fulltext_world_readable 或下载按钮
+        """有 citation_doi meta 标签就说明是论文页面，可构造下载 URL。"""
+        has_doi = page.evaluate("""() => {
+            const el = document.querySelector('meta[name="citation_doi"]');
+            return !!el;
+        }""")
+        if has_doi:
+            return True
+        # Fallback: any download element present
         has_pdf = page.evaluate("""() => {
             const pdfMeta = document.querySelector('meta[name="citation_pdf_url"]');
             const dlBtn = document.querySelector('a.btn-DownloadPaper');
@@ -103,7 +114,7 @@ class SPIEAdapter(PublisherAdapter):
         }""")
         if has_pdf:
             return True
-        logger.warning("No PDF download link found - may need subscription")
+        logger.warning("No citation_doi or download link found")
         return False
 
     def get_paper_metadata(self, page) -> PaperInfo:
