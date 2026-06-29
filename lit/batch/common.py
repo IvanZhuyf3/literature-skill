@@ -22,6 +22,8 @@ import sys
 from pathlib import Path
 from typing import Callable
 
+from publisher.base import VideoOnlyError
+
 from rich.console import Console
 
 from lit.core import zotero as zot
@@ -99,12 +101,6 @@ def collect_missing(
     """
     load_config()
 
-    stats: dict = {
-        "skipped_no_doi": 0,
-        "already_have": 0,
-        "total": 0,
-    }
-
     collection_key = zot.find_collection(collection, parent)
     if collection_key is None:
         console.print(
@@ -118,6 +114,13 @@ def collect_missing(
     console.print(
         f"\n  Collection: [bold]{parent}/{collection}[/bold] ({collection_key})"
     )
+
+    stats: dict = {
+        "skipped_no_doi": 0,
+        "already_have": 0,
+        "collection_key": collection_key,
+        "total": 0,
+    }
 
     all_items = zot.collection_items(collection_key)
     console.print(f"  Items (incl. children): {len(all_items)}")
@@ -191,6 +194,7 @@ def batch_download(
 
     stats["attached"] = 0
     stats["failed"] = 0
+    stats["video_only"] = 0
 
     try:
         for i, paper in enumerate(papers):
@@ -233,6 +237,22 @@ def batch_download(
                     stats["failed"] += 1
                     console.print(f"    [dim]✗ {label}: no PDF[/dim]")
 
+            except VideoOnlyError:
+                # 会议视频，无 PDF — 移出当前 collection
+                stats["video_only"] += 1
+                col_key = stats.get("collection_key")
+                if col_key:
+                    try:
+                        client = zot._client()
+                        item = client.item(paper["key"])
+                        collections = item["data"].get("collections", [])
+                        if col_key in collections:
+                            collections.remove(col_key)
+                            client.update_item(item)
+                    except Exception:
+                        pass
+                console.print(f"    [cyan]📺 Video-only — removed from collection[/cyan]")
+
             except Exception as e:
                 err = str(e)[:200]
                 stats["failed"] += 1
@@ -247,6 +267,7 @@ def batch_download(
         f"\n  [bold]Summary:{stopped_note}[/bold] "
         f"✓ {stats['attached']} attached, "
         f"✗ {stats['failed']} failed, "
+        f"📺 {stats.get('video_only', 0)} video-only, "
         f"⊘ {stats['skipped_no_doi']} no DOI"
     )
     return stats

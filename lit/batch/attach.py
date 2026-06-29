@@ -18,14 +18,18 @@ from lit.core import zotero as zot
 from lit.core.config import load as load_config
 from lit.download.engine import download_pdf
 from lit.batch.common import collect_missing, batch_download
+from publisher.base import VideoOnlyError
 
 console = Console()
 
 
 def _adapter_download(doi: str) -> Path | None:
-    """包装 engine.download_pdf，统一返回 Path | None（不抛异常）。"""
+    """包装 engine.download_pdf，统一返回 Path | None（不抛异常）。
+    VideoOnlyError 向上传播，由 batch_download 处理。"""
     try:
         return download_pdf(doi, timeout=120)
+    except VideoOnlyError:
+        raise  # 让 batch_download 捕获并移出 collection
     except Exception:
         return None
 

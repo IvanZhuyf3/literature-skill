@@ -31,6 +31,8 @@ import sys
 import time
 from pathlib import Path
 
+from publisher.base import VideoOnlyError
+
 from rich.console import Console
 
 from lit.core.config import load as get_config
@@ -275,6 +277,8 @@ def download_pdf(url_or_doi: str, timeout: int = 120) -> Path:
     # ── 3. Direct CDP + adapter flow ─────────────────────────
     try:
         return _download_via_cdp(url, publisher, cfg, timeout)
+    except VideoOnlyError:
+        raise  # 不要走 fallback，视频条目没有 PDF
     except Exception as exc:
         logger.warning(
             "Direct CDP download failed: %s. Trying subprocess fallback...", exc

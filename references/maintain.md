@@ -112,6 +112,25 @@ async def main():
 asyncio.run(main())
 ```
 
+### 2b. 替代方案：CDP Recording（人在回路逆向）
+
+如果写 debug 脚本太慢，或者页面逻辑复杂难以脚本化探测，用 **CDP recording** 技巧：人手动操作一遍下载，录制网络请求，从请求序列中发现真正的 PDF 下载端点。
+
+```bash
+# 1. 加载 cdp-recording skill
+# 2. Edge 已开 CDP 端口（--remote-debugging-port=19222 --remote-allow-origins=*）
+# 3. 导航到论文页面
+# 4. 开录制（后台 + 超时自动停）：
+cd <cdp-recording skill dir>
+PYTHONIOENCODING=utf-8 python scripts/record.py --tab 0 --timeout 60
+# 5. 手动操作：点下载按钮、等 PDF 出来
+# 6. 查看报告：recordings/<timestamp>.md
+```
+
+报告中的 **API Calls** 和 **Documents / Downloads** 部分会显示真正的 PDF 请求 URL + curl 命令。很多时候下载就是一个简单的 GET + Referer，完全不需要复杂的 DOM 操作。
+
+**实战案例（SPIE, 2026-06-29）**：adapter 用 `citation_pdf_url` meta 标签提取 URL，但该 URL 返回 HTML interstitial 非 PDF。CDP 录制发现真正的下载端点是 `GET /Proceedings/Download?urlId={DOI_URL_ENCODED}`，只需 Referer header。修改 `find_download_url()` 直接构造此 URL 即可。
+
 ### 3. 修复
 
 阅读 `architecture.md` 中对应 publisher 的章节，了解当前实现。
@@ -313,3 +332,6 @@ fetch('/doi/pdf/10.xxx').then(r => r.arrayBuffer().then(b => console.log(Array.f
 | fetch() 403 | CORS 或 TLS 指纹 | 改用页面上下文 fetch 或导航到 PDF 页面再做 fetch |
 | metadata 为空 | epdf 查看器页面没有 citation meta 标签 | 先去文章信息页提取 metadata，再跳到下载页 |
 | 文件太小 (<100KB) | 保存了 HTML wrapper | 检查下载方式 |
+| `citation_pdf_url` 返回 HTML 非 PDF | meta 标签指向 interstitial 页面 | CDP recording 录一遍手动下载，找真正的端点（如 SPIE `/Proceedings/Download?urlId=`） |
+| publisher 在 `_PUBLISHER_BLACKLIST` 中 | 之前被标记为 paywall/不可下载 | 用 CDP recording 验证是否真不可下载（机构登录态可能已覆盖），确认后从黑名单移除 |
+| SPIE 会议论文只有视频无 PDF | "Conference Presentation" 类型，页面只有视频+摘要 | 移出 collection（不是下载失败，是本身没有 PDF） |

@@ -74,6 +74,7 @@ PDF 下载是两个独立命令，agent 按需编排：
 - 下载失败时，先查 `<skill-base>/error_log.md` 该出版商的条目。深度调试读 `references/architecture.md`。
 - **OCR DOI 和 CrossRef 匹配都不可全信**。检查 `crossref_score`：<30 时匹配不可信。
 - **Sci-Hub CAPTCHA 熔断**：批量下载时 Sci-Hub 镜像可能连续 CAPTCHA 被拉黑（2/5 mirrors dead → 基本废了）。此时在 `lit/download/quick_download.py` 注释掉 `try_scihub` import 和 `_METHODS` 条目，等 IP 冷却（数小时~一天）后再恢复。quick 链即使没有 Sci-Hub 仍有 Crossref TDM + Unpaywall 两个有效源。
+- **SPIE adapter 已修复（2026-06-29）**：`citation_pdf_url` meta 标签返回 HTML interstitial 非 PDF。改用 `/Proceedings/Download?urlId={DOI_URL_ENCODED}` 直链。已从 `_PUBLISHER_BLACKLIST` 移除。注意：部分 SPIE 会议论文（如 PC12855 2024）只有视频演示无 PDF，应移出 collection。
 - **`has_pdf_attachment()` 在 WebDAV 模式下不可靠**：imported_file 附件不走 Zotero API 的标准 attachment 标记，会误报所有论文缺 PDF。批量查缺口一律用 `resolve_local_pdf(doi)` 做文件系统级检查（`collect_missing()` 已用此方法）。手动检查缺口也用它。
 - **SPIE 在 `_PUBLISHER_BLACKLIST` 中**：`engine.py` 的 `_PUBLISHER_BLACKLIST` 包含 `"spie"`（标记为 paywall）。如需尝试 SPIE 下载，需临时移除黑名单条目。SPIE adapter 代码存在（`publisher/spie.py`），用 `citation_pdf_url` meta 标签定位 PDF。
 - **`_PUBLISHER_BLACKLIST` 静默跳过**：`engine.py` 有 `_PUBLISHER_BLACKLIST = {"spie"}`，被列入的出版商 adapter 根本不执行，输出只有 `✗ Publisher: no PDF`，没有错误日志。排查 "no PDF" 但 `error_log.md` 无条目时，第一时间查这个集合。SPIE（`10.1117/` 会议论文）是最常见的静默跳过源。要解除：注释掉黑名单条目 + 用 CDP recording 录一遍手动下载确认选择器。

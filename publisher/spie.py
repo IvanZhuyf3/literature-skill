@@ -12,7 +12,7 @@ import logging
 from typing import Optional, Any
 from urllib.parse import urljoin
 
-from .base import PublisherAdapter, PaperInfo
+from .base import PublisherAdapter, PaperInfo, VideoOnlyError
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +99,21 @@ class SPIEAdapter(PublisherAdapter):
         return pdf_url
 
     def check_access(self, page) -> bool:
-        """有 citation_doi meta 标签就说明是论文页面，可构造下载 URL。"""
+        """有 citation_doi meta 标签就说明是论文页面，可构造下载 URL。
+        如果检测到只有会议视频没有 PDF，抛 VideoOnlyError。
+        """
+        # Detect video-only conference presentations (no PDF exists)
+        # Video pages have "Conference Presentation" text but no "PDF" link
+        is_video = page.evaluate("""() => {
+            const body = document.body.textContent || '';
+            const hasConfVideo = body.includes('Conference Presentation')
+                && body.includes('Video');
+            const hasPdfLink = body.includes('PDF');
+            return hasConfVideo && !hasPdfLink;
+        }""")
+        if is_video:
+            raise VideoOnlyError("SPIE conference presentation video — no PDF available")
+
         has_doi = page.evaluate("""() => {
             const el = document.querySelector('meta[name="citation_doi"]');
             return !!el;

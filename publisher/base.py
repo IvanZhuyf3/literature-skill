@@ -9,6 +9,11 @@ from dataclasses import dataclass, field
 from typing import Optional, Any
 
 
+class VideoOnlyError(Exception):
+    """该条目只有会议视频，没有 PDF。调用方应将其移出 collection。"""
+    pass
+
+
 @dataclass
 class PaperInfo:
     """论文元数据。"""
