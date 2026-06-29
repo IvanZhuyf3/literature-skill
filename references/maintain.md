@@ -114,7 +114,9 @@ asyncio.run(main())
 
 ### 2b. 替代方案：CDP Recording（人在回路逆向）
 
-如果写 debug 脚本太慢，或者页面逻辑复杂难以脚本化探测，用 **CDP recording** 技巧：人手动操作一遍下载，录制网络请求，从请求序列中发现真正的 PDF 下载端点。
+**如果写 debug 脚本探了半天还搞不定，不要继续死磕——喊用户帮你录一遍。** 人手动操作一次下载，录制网络请求，从请求序列中发现真正的 PDF 下载端点。这比逆向 DOM 快得多，尤其是页面逻辑复杂、有反爬、或下载链路经过多次重定向时。
+
+流程：加载 `cdp-recording` skill → 确认 Edge 已开 CDP（`--remote-debugging-port=19222 --remote-allow-origins=*`）→ 用户导航到论文页 → 开录制（`--timeout 60` 后台自动停）→ 用户操作下载 → 看报告中的 API Calls / Downloads 部分。
 
 ```bash
 # 1. 加载 cdp-recording skill
@@ -137,6 +139,28 @@ PYTHONIOENCODING=utf-8 python scripts/record.py --tab 0 --timeout 60
 阅读 `publisher/<name>.py` 的 docstring 了解选择器和特殊处理。
 
 修改对应的 `publisher/<name>.py`。
+
+#### VideoOnlyError 模式（会议视频/海报/无 PDF 条目）
+
+有些条目本身没有 PDF（如 SPIE 会议视频演示、会议海报）。对这类条目不应该报"下载失败"，而应自动移出 collection。
+
+实现方式（三处改动）：
+
+1. **`publisher/base.py`** — 异常类已定义：`class VideoOnlyError(Exception)`
+2. **`publisher/<name>.py`** — 在 `check_access()` 中检测并 raise：
+   ```python
+   from .base import PublisherAdapter, PaperInfo, VideoOnlyError
+   
+   def check_access(self, page) -> bool:
+       is_video = page.evaluate("() => { /* 检测逻辑 */ }")
+       if is_video:
+           raise VideoOnlyError("... — no PDF available")
+       # 正常检测...
+   ```
+3. **`lit/download/engine.py`** — `VideoOnlyError` 已配置为穿透 fallback（不走 subprocess）
+4. **`lit/batch/common.py`** — `batch_download()` 已配置为捕获并移出当前 collection
+
+检测策略因出版商而异。SPIE 的经验：`citation_pdf_url` meta 标签**可能存在**但指向 HTML interstitial，不能用它判断有无 PDF。可靠信号是页面文字内容（SPIE 视频页有 "Conference Presentation" 但无 "PDF" 文字）。
 
 ### 4. 测试
 
