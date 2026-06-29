@@ -118,7 +118,6 @@ def collect_missing(
     stats: dict = {
         "skipped_no_doi": 0,
         "already_have": 0,
-        "collection_key": collection_key,
         "total": 0,
     }
 
@@ -238,19 +237,15 @@ def batch_download(
                     console.print(f"    [dim]✗ {label}: no PDF[/dim]")
 
             except VideoOnlyError:
-                # 会议视频，无 PDF — 移出当前 collection
+                # 会议视频，无 PDF — 移出 collection
                 stats["video_only"] += 1
-                col_key = stats.get("collection_key")
-                if col_key:
-                    try:
-                        client = zot._client()
-                        item = client.item(paper["key"])
-                        collections = item["data"].get("collections", [])
-                        if col_key in collections:
-                            collections.remove(col_key)
-                            client.update_item(item)
-                    except Exception:
-                        pass
+                try:
+                    client = zot._client()
+                    item = client.item(paper["key"])
+                    item["data"]["collections"] = []
+                    client.update_item(item)
+                except Exception:
+                    pass
                 console.print(f"    [cyan]📺 Video-only — removed from collection[/cyan]")
 
             except Exception as e:
